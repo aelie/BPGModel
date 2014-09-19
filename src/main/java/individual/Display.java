@@ -15,7 +15,6 @@ import org.jfree.data.category.DefaultCategoryDataset;
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -40,14 +39,14 @@ public class Display{
 
     public Display(int time) {
         //server
-        CategoryDataset serverDataset = createServerDataset(Simulator.getInstance().servers);
+        CategoryDataset serverDataset = createServerDataset(Simulator.getInstance().serverPool);
         JFreeChart serverChart = createChart(serverDataset, "Servers");
         final ChartPanel serverChartPanel = new ChartPanel(serverChart);
         serverChartPanel.setPreferredSize(new Dimension(500, 270));
         serverFrame = new JFrame("Server " + time);
         serverFrame.add(serverChartPanel);
         //application
-        CategoryDataset applicationDataset = createApplicationDataset(Simulator.getInstance().applications);
+        CategoryDataset applicationDataset = createApplicationDataset(Simulator.getInstance().applicationPool);
         JFreeChart applicationChart = createChart(applicationDataset, "Applications");
         final ChartPanel applicationChartPanel = new ChartPanel(applicationChart);
         applicationChartPanel.setPreferredSize(new Dimension(500, 270));
@@ -66,7 +65,7 @@ public class Display{
         final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
         int index = 0;
         for(Server server : servers) {
-            dataset.addValue((Number)(server.getAvailableServices().size()), "Server services", index);
+            dataset.addValue((Number)(server.getAvailableServices().size()), "Server servicePool", index);
             dataset.addValue((Number)(server.getCurrentConnectionNumber()), "Server connections", index);
             index++;
         }
@@ -78,7 +77,7 @@ public class Display{
         final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
         int index = 0;
         for(Application application : applications) {
-            dataset.addValue((Number)(application.getRequiredServices().size()), "Application services", index);
+            dataset.addValue((Number)(application.getRequiredServices().size()), "Application servicePool", index);
             index++;
         }
 

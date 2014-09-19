@@ -9,7 +9,7 @@ public class Server implements Serializable {
     String name;
     Set<Service> availableServices;
     int maxConnectionNumber;
-    int currentConnectionNumber = 0; //nombre applications connectées
+    int currentConnectionNumber = 0; //nombre applicationPool connectées
     //int neededResource;
     //int age;
 
@@ -19,9 +19,13 @@ public class Server implements Serializable {
         this.maxConnectionNumber = maxConnectionNumber;
     }
 
+    public Set<Application> getConnectedApplications(Map<Server, Map<Application, Set<Service>>> connections) {
+        return connections.get(this).keySet();
+    }
+
     public void mutate() {
         Set<Service> mutatedServices = new LinkedHashSet<Service>();
-        for(Service service : Simulator.getInstance().getServices()) {
+        for(Service service : Simulator.getInstance().getServicePool()) {
             if(Simulator.getInstance().getMtf().nextDouble() < service.getMutationProbability()) {
                 if(!availableServices.contains(service)) {
                     mutatedServices.add(service);
