@@ -53,12 +53,12 @@ public class Display{
         applicationFrame = new JFrame("Application " + time);
         applicationFrame.setContentPane(applicationChartPanel);
         //robustness
-        CategoryDataset robustnessDataset = createRobustnessDataset(Simulator.getInstance().robustnessHistory);
+        /*CategoryDataset robustnessDataset = createRobustnessDataset(Simulator.getInstance().robustnessHistory);
         JFreeChart robustnessChart = createChart(robustnessDataset, "Robustness");
         final ChartPanel robustnessChartPanel = new ChartPanel(robustnessChart);
         robustnessChartPanel.setPreferredSize(new Dimension(500, 270));
         robustnessFrame = new JFrame("Robustness " + time);
-        robustnessFrame.setContentPane(robustnessChartPanel);
+        robustnessFrame.setContentPane(robustnessChartPanel);*/
     }
 
     public CategoryDataset createServerDataset(Set<Server> servers) {
@@ -66,7 +66,7 @@ public class Display{
         int index = 0;
         for(Server server : servers) {
             dataset.addValue((Number)(server.getAvailableServices().size()), "Server servicePool", index);
-            dataset.addValue((Number)(server.getCurrentConnectionNumber()), "Server connections", index);
+            dataset.addValue((Number)(server.getCurrentConnectionNumber()), "Server connexions", index);
             index++;
         }
 

@@ -7,10 +7,12 @@ import java.io.Serializable;
  */
 public class Service implements Serializable {
     String name;
+    int id;
     double mutationProbability; //0<p<0.5 arbitraire //VARIABLE
 
-    public Service(String name, double mutationProbability) {
+    public Service(String name, int id, double mutationProbability) {
         this.name = name;
+        this.id = id;
         this.mutationProbability = mutationProbability;
     }
 
@@ -28,6 +30,10 @@ public class Service implements Serializable {
 
     public void setMutationProbability(double mutationProbability) {
         this.mutationProbability = mutationProbability;
+    }
+
+    public int getId() {
+        return id;
     }
 
     public String toString() {

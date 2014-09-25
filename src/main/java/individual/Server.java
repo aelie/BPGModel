@@ -75,7 +75,7 @@ public class Server implements Serializable {
         return currentConnectionNumber > 0;
     }
 
-    public void addConnection() {
+    public void addConnexion() {
         currentConnectionNumber++;
     }
 
