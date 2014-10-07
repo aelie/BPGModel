@@ -6,6 +6,7 @@ import org.graphstream.graph.implementations.MultiGraph;
 import org.graphstream.graph.implementations.SingleGraph;
 import org.graphstream.ui.swingViewer.View;
 import org.graphstream.ui.swingViewer.Viewer;
+import tools.Tools;
 
 import javax.swing.*;
 import java.util.Map;
@@ -19,6 +20,7 @@ public class DisplayGraph {
     public DisplayGraph() {
         graph = new SingleGraph("embedded");
         Viewer viewer = graph.display();
+        viewer.disableAutoLayout();
         //viewer.enableAutoLayout(new SpringBoxBP());
     }
 
@@ -52,33 +54,36 @@ public class DisplayGraph {
         }
     }
 
-    public void displayGraph(Map<Server, Map<Application, Set<Service>>> connections) {
+    public void displayGraph(Map<Server, Map<Application, Set<Service>>> connexions) {
         graph.clear();
-        if(connections != null) {
+        if(connexions != null) {
             int serverCounter = 0;
-            for (Server server : connections.keySet()) {
+            int applicationCounter = 0;
+            for (Server server : connexions.keySet()) {
                 Node serverNode;
                 if((serverNode = graph.getNode(server.toString())) == null) {
                     serverNode = graph.addNode(server.toString());
                     serverNode.setAttribute("ui.label", serverNode.getId());
                     serverNode.setAttribute("xyz", serverCounter, 0, 0);
                 }
-                int applicationCounter = 0;
-                for (Application application : connections.get(server).keySet()) {
+                for (Application application : connexions.get(server).keySet()) {
                     Node applicationNode;
-                    if((applicationNode = graph.getNode(application.toString())) == null) {
+                    if(graph.getNode(application.toString()) == null) {
                         applicationNode = graph.addNode(application.toString());
                         applicationNode.setAttribute("ui.label", applicationNode.getId());
                         applicationNode.setAttribute("xyz", applicationCounter, 2, 0);
+                        applicationCounter++;
                     }
-                    String edgeName = "";
-                    for (Service service : connections.get(server).get(application)) {
+                    else {
+                        applicationNode = graph.getNode(application.toString());
+                    }
+                    String edgeName = applicationNode.getAttribute("ui.label");
+                    for (Service service : connexions.get(server).get(application)) {
                         edgeName += service.getName() + "-";
                     }
                     if(graph.getEdge(edgeName) == null) {
                         graph.addEdge(edgeName, applicationNode.getId(), serverNode.getId()).setAttribute("ui.label", edgeName);
                     }
-                    applicationCounter++;
                 }
                 serverCounter++;
             }

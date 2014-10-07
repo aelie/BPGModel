@@ -41,7 +41,7 @@ public class SimulationManager {
             @Override
             public void actionPerformed(ActionEvent e) {
                 Simulator.getInstance().setOnPause(false);
-                Simulator.getInstance().start();
+                Simulator.getInstance().start(true);
             }
         });
     }

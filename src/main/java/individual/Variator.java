@@ -1,8 +1,12 @@
 package individual;
 
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -22,52 +26,55 @@ public class Variator {
                 pw_R.print(",ESS" + i);
             }
             pw_R.println();
+            PrintWriter pw_RD = new PrintWriter(output_R.split("\\.").length > 1 ? output_R.split("\\.")[0] + "D" + output_R.split("\\.")[1] : output_R + "D", "UTF-8");
+            pw_RD.println("Parameters,RobustnessDifference");
             Simulator simulator;
-            for (int applicationPoolSize = 10; applicationPoolSize < 111; applicationPoolSize += 20) {
-                for (int serverPoolSize = 10; serverPoolSize < 51; serverPoolSize += 10) {
-                    for (int servicePoolSize = 5; servicePoolSize < 55; servicePoolSize += 10) {
-                        for (double mutationProbability = 0.2; mutationProbability < 1; mutationProbability += 0.1) {
-                            for (int serverMaxConnexion = applicationPoolSize / serverPoolSize; serverMaxConnexion < 5 * applicationPoolSize / serverPoolSize; serverMaxConnexion += applicationPoolSize / serverPoolSize) {
-                                for (double serviceListRatio = 0.1; serviceListRatio < 0.5; serviceListRatio += 0.1) {
-                                    for (int graph = 0; graph < graphNumber; graph++) {
-                                        String variables = applicationPoolSize + "_" +
-                                                serverPoolSize + "_" +
-                                                servicePoolSize + "_" +
-                                                mutationProbability + "_" +
-                                                serverMaxConnexion + "_" +
-                                                serviceListRatio;
-                                        System.out.println(variables + "/" + graph);
-                                        simulator = Simulator.getInstance();
-                                        simulator.setVariables(applicationPoolSize, serverPoolSize, servicePoolSize,
-                                                mutationProbability, serverMaxConnexion, serviceListRatio,
-                                                maxTime, robustnessRuns);
-                                        simulator.warmup((int) System.currentTimeMillis(), true);
-                                        simulator.start();
-                                        //initial
-                                        List<Map<Integer, List<Double>>> result = Simulator.getInstance().getRobustnessResults();
-                                        for (Integer index : result.get(0).keySet()) {
-                                            pw_R.print(variables + "," + graph + "," + 0 + "," + index);
-                                            for (Double ess : result.get(0).get(index)) {
-                                                pw_R.print("," + ess);
-                                            }
-                                            pw_R.println();
+            for (int applicationPoolSize = 120; applicationPoolSize < 121; applicationPoolSize += 20) {
+                for (int serverPoolSize = 40; serverPoolSize < 81; serverPoolSize += 10) {
+                    for (int servicePoolSize = 40; servicePoolSize < 81; servicePoolSize += 10) {
+                        for (double mutationProbability = 0.2; mutationProbability < 0.7; mutationProbability += 0.1) {
+                            for (int serverMaxConnexion = 6; serverMaxConnexion < 13; serverMaxConnexion += 3) {
+                                String variables = applicationPoolSize + "_" +
+                                        serverPoolSize + "_" +
+                                        servicePoolSize + "_" +
+                                        mutationProbability + "_" +
+                                        serverMaxConnexion;
+                                List<SummaryStatistics> robustnesses = new ArrayList<>(Arrays.asList(new SummaryStatistics(), new SummaryStatistics()));
+                                for (int graph = 0; graph < graphNumber; graph++) {
+                                    System.out.println(variables + "/" + graph);
+                                    simulator = Simulator.getInstance();
+                                    simulator.setVariables(applicationPoolSize, serverPoolSize, servicePoolSize,
+                                            mutationProbability, serverMaxConnexion,
+                                            maxTime, robustnessRuns);
+                                    simulator.warmup((int) System.currentTimeMillis(), true);
+                                    simulator.start(false);
+                                    List<Map<Integer, List<Double>>> result = Simulator.getInstance().getRobustnessResults();
+                                    //initial
+                                    for (Integer index : result.get(0).keySet()) {
+                                        /*pw_R.print(variables + "," + graph + "," + 0 + "," + index);
+                                        for (Double extinctionSequenceStep : result.get(0).get(index)) {
+                                            pw_R.print("," + extinctionSequenceStep);
                                         }
-                                        //end
-                                        result = Simulator.getInstance().getRobustnessResults();
-                                        for (Integer index : result.get(1).keySet()) {
-                                            pw_R.print(variables + "," + graph + "," + maxTime + "," + index);
-                                            for (Double ess : result.get(1).get(index)) {
-                                                pw_R.print("," + ess);
-                                            }
-                                            pw_R.println();
+                                        pw_R.println();*/
+                                        robustnesses.get(0).addValue(result.get(0).get(index).get(0));
+                                    }
+                                    //final
+                                    for (Integer index : result.get(result.size() - 1).keySet()) {
+                                        /*pw_R.print(variables + "," + graph + "," + maxTime + "," + index);
+                                        for (Double extinctionSequenceStep : result.get(result.size() - 1).get(index)) {
+                                            pw_R.print("," + extinctionSequenceStep);
                                         }
+                                        pw_R.println();*/
+                                        robustnesses.get(result.size() - 1).addValue(result.get(result.size() - 1).get(index).get(0));
                                     }
                                 }
+                                pw_RD.println(variables + "," + (robustnesses.get(robustnesses.size() - 1).getMean() - robustnesses.get(0).getMean()));
                             }
                         }
                     }
                 }
             }
+            pw_RD.close();
             pw_R.close();
         } catch (FileNotFoundException e) {
             e.printStackTrace();
