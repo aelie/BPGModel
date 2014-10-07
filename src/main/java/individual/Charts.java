@@ -6,16 +6,21 @@ import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.CategoryAxis;
 import org.jfree.chart.axis.CategoryLabelPositions;
 import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.category.BarRenderer;
+import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.*;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Created by aelie on 05/09/14.
@@ -40,25 +45,25 @@ public class Display{
     public Display(int time) {
         //server
         CategoryDataset serverDataset = createServerDataset(Simulator.getInstance().serverPool);
-        JFreeChart serverChart = createChart(serverDataset, "Servers");
+        JFreeChart serverChart = createBarChart(serverDataset, "Servers");
         final ChartPanel serverChartPanel = new ChartPanel(serverChart);
         serverChartPanel.setPreferredSize(new Dimension(500, 270));
         serverFrame = new JFrame("Server " + time);
         serverFrame.add(serverChartPanel);
         //application
         CategoryDataset applicationDataset = createApplicationDataset(Simulator.getInstance().applicationPool);
-        JFreeChart applicationChart = createChart(applicationDataset, "Applications");
+        JFreeChart applicationChart = createBarChart(applicationDataset, "Applications");
         final ChartPanel applicationChartPanel = new ChartPanel(applicationChart);
         applicationChartPanel.setPreferredSize(new Dimension(500, 270));
         applicationFrame = new JFrame("Application " + time);
         applicationFrame.setContentPane(applicationChartPanel);
         //robustness
-        /*CategoryDataset robustnessDataset = createRobustnessDataset(Simulator.getInstance().robustnessHistory);
-        JFreeChart robustnessChart = createChart(robustnessDataset, "Robustness");
+        XYSeriesCollection finalRobustnessDataset = createFinalRobustnessDataset(Simulator.getInstance().getRobustnessResults().get(1));
+        JFreeChart robustnessChart = createXYChart(finalRobustnessDataset, "FinalRobustness");
         final ChartPanel robustnessChartPanel = new ChartPanel(robustnessChart);
-        robustnessChartPanel.setPreferredSize(new Dimension(500, 270));
-        robustnessFrame = new JFrame("Robustness " + time);
-        robustnessFrame.setContentPane(robustnessChartPanel);*/
+        robustnessChartPanel.setPreferredSize(new Dimension(1500, 800));
+        robustnessFrame = new JFrame("FinalRobustness " + time);
+        robustnessFrame.setContentPane(robustnessChartPanel);
     }
 
     public CategoryDataset createServerDataset(Set<Server> servers) {
@@ -84,18 +89,33 @@ public class Display{
         return dataset;
     }
 
-    public CategoryDataset createRobustnessDataset(List<Double> robustnessHistory) {
-        final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+    public XYSeriesCollection createFinalRobustnessDataset(Map<Integer, List<Double>> robustnessHistory) {
+        final XYSeriesCollection dataset = new XYSeriesCollection();
+        double[] mean = new double[robustnessHistory.get(0).size()];
+        double meanRobustness = 0;
+        for(Integer run : robustnessHistory.keySet()) {
+            final XYSeries serie = new XYSeries(run);
+            meanRobustness += robustnessHistory.get(run).remove(0);
+            int index = 0;
+            for(Double value : robustnessHistory.get(run)) {
+                serie.add(index, value);
+                mean[index] = mean[index] + value;
+                index++;
+            }
+            dataset.addSeries(serie);
+        }
+        final XYSeries serie = new XYSeries("Mean = " + meanRobustness / robustnessHistory.size());
         int index = 0;
-        for(Double robustness : robustnessHistory) {
-            dataset.addValue((Number)robustness, "Robustness", index);
+        for(Double meanValue : mean) {
+            serie.add(index, meanValue / robustnessHistory.size());
             index++;
         }
+        dataset.addSeries(serie);
 
         return dataset;
     }
 
-    private JFreeChart createChart(final CategoryDataset dataset, String title) {
+    private JFreeChart createBarChart(final CategoryDataset dataset, String title) {
         final JFreeChart chart = ChartFactory.createBarChart(
                 title,         // chart title
                 "Category",               // domain axis label
@@ -141,10 +161,37 @@ public class Display{
         renderer.setSeriesPaint(2, gp2);*/
 
         final CategoryAxis domainAxis = plot.getDomainAxis();
-        domainAxis.setCategoryLabelPositions(CategoryLabelPositions.createUpRotationLabelPositions(Math.PI / 6.0)
-        );
+        domainAxis.setCategoryLabelPositions(CategoryLabelPositions.createUpRotationLabelPositions(Math.PI / 6.0));
         // OPTIONAL CUSTOMISATION COMPLETED.
 
+        return chart;
+    }
+
+    private JFreeChart createXYChart(final XYSeriesCollection dataset, String title) {
+        final JFreeChart chart = ChartFactory.createXYLineChart(
+                title,         // chart title
+                "Category",               // domain axis label
+                "Value",                  // range axis label
+                dataset,                  // data
+                PlotOrientation.VERTICAL, // orientation
+                true,                     // include legend
+                true,                     // tooltips?
+                false                     // URLs?
+        );
+        // set the background color for the chart...
+        chart.setBackgroundPaint(Color.white);
+
+        // get a reference to the plot for further customisation...
+        final XYPlot plot = chart.getXYPlot();
+        plot.setBackgroundPaint(Color.lightGray);
+        plot.setDomainGridlinePaint(Color.white);
+        plot.setRangeGridlinePaint(Color.white);
+
+        // set the range axis to display integers only...
+        final NumberAxis rangeAxis = (NumberAxis) plot.getRangeAxis();
+        rangeAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
+
+        final XYItemRenderer renderer = plot.getRenderer();
         return chart;
     }
 }
