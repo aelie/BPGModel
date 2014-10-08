@@ -27,26 +27,28 @@ public class Variator {
             }
             pw_R.println();
             PrintWriter pw_RD = new PrintWriter(output_R.split("\\.").length > 1 ? output_R.split("\\.")[0] + "D" + output_R.split("\\.")[1] : output_R + "D", "UTF-8");
-            pw_RD.println("Parameters,RobustnessDifference");
+            pw_RD.println("Parameters,I10%,F10%,D10%,I30%,F30%,D30%,Initial,Final,Difference");
             Simulator simulator;
-            for (int applicationPoolSize = 120; applicationPoolSize < 121; applicationPoolSize += 20) {
-                for (int serverPoolSize = 40; serverPoolSize < 81; serverPoolSize += 10) {
-                    for (int servicePoolSize = 40; servicePoolSize < 81; servicePoolSize += 10) {
+            for (int applicationPoolSize = 100; applicationPoolSize < 1001; applicationPoolSize += 100) {
+                for (int serverPoolSize = 50; serverPoolSize < 751; serverPoolSize += 50) {
+                    for (int servicePoolSize = 10; servicePoolSize < 311; servicePoolSize += 100) {
                         for (double mutationProbability = 0.2; mutationProbability < 0.7; mutationProbability += 0.1) {
-                            for (int serverMaxConnexion = 6; serverMaxConnexion < 13; serverMaxConnexion += 3) {
+                            for (int serverMaxConnexion = 10; serverMaxConnexion < 51; serverMaxConnexion += 10) {
                                 String variables = applicationPoolSize + "_" +
                                         serverPoolSize + "_" +
                                         servicePoolSize + "_" +
                                         mutationProbability + "_" +
                                         serverMaxConnexion;
-                                List<SummaryStatistics> robustnesses = new ArrayList<>(Arrays.asList(new SummaryStatistics(), new SummaryStatistics()));
+                                //I10, I30, I, F10, F30, F
+                                List<SummaryStatistics> robustnesses = new ArrayList<>(Arrays.asList(new SummaryStatistics(), new SummaryStatistics(), new SummaryStatistics(),
+                                        new SummaryStatistics(), new SummaryStatistics(), new SummaryStatistics()));
                                 for (int graph = 0; graph < graphNumber; graph++) {
                                     System.out.println(variables + "/" + graph);
                                     simulator = Simulator.getInstance();
                                     simulator.setVariables(applicationPoolSize, serverPoolSize, servicePoolSize,
                                             mutationProbability, serverMaxConnexion,
                                             maxTime, robustnessRuns);
-                                    simulator.warmup((int) System.currentTimeMillis(), true);
+                                    simulator.warmup((int) System.currentTimeMillis(), true, true);
                                     simulator.start(false);
                                     List<Map<Integer, List<Double>>> result = Simulator.getInstance().getRobustnessResults();
                                     //initial
@@ -56,7 +58,12 @@ public class Variator {
                                             pw_R.print("," + extinctionSequenceStep);
                                         }
                                         pw_R.println();*/
-                                        robustnesses.get(0).addValue(result.get(0).get(index).get(0));
+                                        List<Double> extinctionSequence = result.get(0).get(index);
+                                        int index10 = (int)((extinctionSequence.size() - 1) * 1.0 / 10.0);
+                                        int index30 = (int)((extinctionSequence.size() - 1) * 3.0 / 10.0);
+                                        robustnesses.get(0).addValue(extinctionSequence.get(0));
+                                        robustnesses.get(1).addValue(extinctionSequence.get(index10) / extinctionSequence.get(1));
+                                        robustnesses.get(2).addValue(extinctionSequence.get(index30) / extinctionSequence.get(1));
                                     }
                                     //final
                                     for (Integer index : result.get(result.size() - 1).keySet()) {
@@ -65,10 +72,18 @@ public class Variator {
                                             pw_R.print("," + extinctionSequenceStep);
                                         }
                                         pw_R.println();*/
-                                        robustnesses.get(result.size() - 1).addValue(result.get(result.size() - 1).get(index).get(0));
+                                        List<Double> extinctionSequence = result.get(result.size() - 1).get(index);
+                                        int index10 = (int)((extinctionSequence.size() - 1) * 1.0 / 10.0);
+                                        int index30 = (int)((extinctionSequence.size() - 1) * 3.0 / 10.0);
+                                        robustnesses.get(3).addValue(extinctionSequence.get(0));
+                                        robustnesses.get(4).addValue(extinctionSequence.get(index10) / extinctionSequence.get(1));
+                                        robustnesses.get(5).addValue(extinctionSequence.get(index30) / extinctionSequence.get(1));
                                     }
                                 }
-                                pw_RD.println(variables + "," + (robustnesses.get(robustnesses.size() - 1).getMean() - robustnesses.get(0).getMean()));
+                                pw_RD.println(variables + ","
+                                        + robustnesses.get(1).getMean() + "," + robustnesses.get(4).getMean() + "," + (robustnesses.get(4).getMean() - robustnesses.get(1).getMean()) + ","
+                                        + robustnesses.get(2).getMean() + "," + robustnesses.get(5).getMean() + "," + (robustnesses.get(5).getMean() - robustnesses.get(2).getMean()) + ","
+                                        + robustnesses.get(0).getMean() + "," + robustnesses.get(3).getMean() + "," + (robustnesses.get(3).getMean() - robustnesses.get(0).getMean()));
                             }
                         }
                     }

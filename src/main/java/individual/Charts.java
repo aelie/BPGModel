@@ -70,7 +70,7 @@ public class Charts{
         int index = 0;
         for(Server server : servers) {
             dataset.addValue((Number)(server.getAvailableServices().size()), "Server servicePool", index);
-            dataset.addValue((Number)(server.getCurrentConnectionNumber()), "Server connexions", index);
+            dataset.addValue((Number)(server.getCurrentConnectionNumber()), "Server connections", index);
             index++;
         }
 
@@ -90,7 +90,7 @@ public class Charts{
 
     public XYSeriesCollection createRobustnessDataset(Map<Integer, List<Double>> robustnessHistory) {
         final XYSeriesCollection dataset = new XYSeriesCollection();
-        double[] sumValues = new double[robustnessHistory.get(0).size()];
+        double[] sumValues = new double[robustnessHistory.get(0).size() - 1];
         double meanRobustness = 0;
         for(Integer run : robustnessHistory.keySet()) {
             final XYSeries serie = new XYSeries(run);
@@ -179,7 +179,7 @@ public class Charts{
         );
         // set the background color for the chart...
         chart.setBackgroundPaint(Color.white);
-        chart.removeLegend();
+        //chart.removeLegend();
 
         // get a reference to the plot for further customisation...
         final XYPlot plot = chart.getXYPlot();

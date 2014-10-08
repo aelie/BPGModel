@@ -54,7 +54,7 @@ public class DisplayGraph {
         }
     }
 
-    public void displayGraph(Map<Server, Map<Application, Set<Service>>> connexions) {
+    public void displayGraph(Map<Server, Set<Application>> connexions) {
         graph.clear();
         if(connexions != null) {
             int serverCounter = 0;
@@ -66,7 +66,7 @@ public class DisplayGraph {
                     serverNode.setAttribute("ui.label", serverNode.getId());
                     serverNode.setAttribute("xyz", serverCounter, 0, 0);
                 }
-                for (Application application : connexions.get(server).keySet()) {
+                for (Application application : connexions.get(server)) {
                     Node applicationNode;
                     if(graph.getNode(application.toString()) == null) {
                         applicationNode = graph.addNode(application.toString());
@@ -78,7 +78,7 @@ public class DisplayGraph {
                         applicationNode = graph.getNode(application.toString());
                     }
                     String edgeName = applicationNode.getAttribute("ui.label");
-                    for (Service service : connexions.get(server).get(application)) {
+                    for (Service service : Tools.getMatchingServices(server.getAvailableServices(), application.getRequiredServices())) {
                         edgeName += service.getName() + "-";
                     }
                     if(graph.getEdge(edgeName) == null) {

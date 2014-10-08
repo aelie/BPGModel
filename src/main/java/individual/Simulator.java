@@ -20,10 +20,12 @@ import java.util.List;
 public class Simulator {
     //commencer serveurs homogenes
     //#app<#server * #maxconnec
-    double mutationProbability = 0.2;
+    double reproductionModificator = 0.7;
+    double deathModificator = 0.7;
+    double mutationProbability = 0.0;
     int applicationPoolSize = 100; //VARIABLE
     int serverPoolSize = 30; //VARIABLE
-    int serverMaxConnexion = 20;
+    int serverMaxConnections = 20;
     int servicePoolSize = 100; //VARIABLE
     double serviceListRatio = 0.2; //for every node : sLR*#maxService < #service < 1 - sLR*#maxService
     Set<Server> serverPool;
@@ -34,12 +36,12 @@ public class Simulator {
     int serviceCounter = 0;
 
     int currentTime = 0;
-    int maxTime = 50;
+    int maxTime = 10;
     boolean onPause = false;
     MersenneTwisterFast mtf;
 
-    Map<Server, Map<Application, Set<Service>>> connexions;
-    Map<Application, Set<Service>> disconnectedApplications;
+    Map<Server, Set<Application>> connections;
+    Set<Application> disconnectedApplications;
 
     int robustnessRuns = 30;
     List<Map<Integer, List<Double>>> robustnessResults;
@@ -51,6 +53,7 @@ public class Simulator {
     static boolean useManager= false;
 
     DisplayGraph dg;
+    boolean silentMode = false;
 
     private Simulator() { }
 
@@ -68,17 +71,18 @@ public class Simulator {
         this.serverPoolSize = serverPoolSize;
         this.servicePoolSize = servicePoolSize;
         this.mutationProbability = mutationProbability;
-        this.serverMaxConnexion = serverMaxConnexion;
+        this.serverMaxConnections = serverMaxConnexion;
         this.maxTime = maxTime;
         this.robustnessRuns = robustnessRuns;
     }
 
-    public void warmup(int seed, boolean useFFBPG) {
+    public void warmup(int seed, boolean useFFBPG, boolean silentMode) {
         currentTime = 0;
         serverCounter = 0;
         applicationCounter = 0;
         serviceCounter = 0;
         mtf = new MersenneTwisterFast(seed);
+        this.silentMode = silentMode;
         if(useManager) {
             EventQueue.invokeLater(new Runnable() {
                 public void run() {
@@ -89,27 +93,28 @@ public class Simulator {
         }
         //dg = new DisplayGraph();
         init(useFFBPG);
+        //forceInit();
         //exportGraph();
         displayGraph(-2);
         if(!useFFBPG) {
             initialLink();
         }
         displayGraph(-1);
-        initialDiversity = Tools.diversity(connexions);
+        initialDiversity = Tools.diversity(connections);
         robustnessResults = new ArrayList<Map<Integer, List<Double>>>();
-        robustnessResults.add(Tools.robustness(connexions, applicationPoolSize, robustnessRuns));
+        robustnessResults.add(Tools.robustness(connections, applicationPoolSize, robustnessRuns));
     }
 
     public void init(boolean fromFFBPG) {
         servicePool = new LinkedHashSet<Service>();
         serverPool = new LinkedHashSet<Server>();
         applicationPool = new LinkedHashSet<Application>();
-        connexions = new LinkedHashMap<Server, Map<Application, Set<Service>>>();
+        connections = new LinkedHashMap<Server, Set<Application>>();
         if(fromFFBPG) {
             IntegerGenerator sizes_generator = Facade.getPoissonIntegerGenerator(6);
             IntegerSetGenerator srv_generator = Facade.getNegExpIntegerSetGenerator(0.25, 0.005);
             BPGraph ffbpg = Facade.createRandomBPGraph(applicationPoolSize, serverPoolSize, servicePoolSize,
-                    sizes_generator, srv_generator, serverPoolSize, serverMaxConnexion);
+                    sizes_generator, srv_generator, serverPoolSize, serverMaxConnections);
             for(Integer serviceId : ffbpg.getAllUsedServices().toArray()) {
                 servicePool.add(new Service("s" + serviceId, serviceId, mutationProbability));
             }
@@ -129,7 +134,7 @@ public class Simulator {
                 applicationMap.put(ffbpgApplication, application);
             }
             for(Platform platform : ffbpg.getPlatforms()) {
-                Server server = new Server(platform.getName(), null, serverMaxConnexion);
+                Server server = new Server(platform.getName(), null, serverMaxConnections);
                 Set<Service> services = new LinkedHashSet<Service>();
                 for(Integer serviceId : platform.getProvidedServices().toArray()) {
                     for(Service service : servicePool) {
@@ -141,11 +146,11 @@ public class Simulator {
                 server.setAvailableServices(services);
                 serverPool.add(server);
                 for(eu.diversify.ffbpg.Application ffbpgApplication : ffbpg.getLinkedApplicationsForPlatform(platform)) {
-                    if(!connexions.containsKey(server)) {
-                        connexions.put(server, new LinkedHashMap<Application, Set<Service>>());
+                    if(!connections.containsKey(server)) {
+                        connections.put(server, new LinkedHashSet<Application>());
                     }
-                    connexions.get(server).put(applicationMap.get(ffbpgApplication),
-                            Tools.getMatchingServices(server.getAvailableServices(), applicationMap.get(ffbpgApplication).getRequiredServices()));
+                    connections.get(server).add(applicationMap.get(ffbpgApplication));
+                    server.addConnexion();
                 }
             }
         } else {
@@ -153,7 +158,7 @@ public class Simulator {
                 servicePool.add(new Service("s" + serviceCounter, serviceCounter, mutationProbability));
             }
             for (serverCounter = 0; serverCounter < serverPoolSize; serverCounter++) {
-                serverPool.add(new Server("S" + serverCounter, Tools.extractServiceList(servicePool, serviceListRatio), serverMaxConnexion));
+                serverPool.add(new Server("S" + serverCounter, Tools.extractServiceList(servicePool, serviceListRatio), serverMaxConnections));
             }
             for (applicationCounter = 0; applicationCounter < applicationPoolSize; applicationCounter++) {
                 applicationPool.add(new Application("A" + applicationCounter, Tools.extractServiceList(servicePool, serviceListRatio)));
@@ -165,7 +170,9 @@ public class Simulator {
         runUntil(maxTime);
         displayGraph(currentTime);
         //System.out.println("D :: " + diversityHistory);
-        System.out.println("R50 :: " + getRobustnessResults().get(1));
+        if(!silentMode) {
+            System.out.println("R" + currentTime + " :: " + getRobustnessResults().get(1));
+        }
         if(displayCharts) {
             Charts charts = new Charts();
             charts.init(currentTime);
@@ -183,11 +190,11 @@ public class Simulator {
             }
             evolve();
             //evolveConstantPopulation();
-            //System.out.println(Tools.getAliveApplications(connexions).size() + "/" + Tools.getAliveServers(connexions).size());
+            //System.out.println(Tools.getAliveApplications(connections).size() + "/" + Tools.getAliveServers(connections).size());
             currentTime++;
         }
-        finalDiversity = Tools.diversity(connexions);
-        robustnessResults.add(Tools.robustness(connexions, applicationPoolSize, robustnessRuns));
+        finalDiversity = Tools.diversity(connections);
+        robustnessResults.add(Tools.robustness(connections, applicationPoolSize, robustnessRuns));
     }
 
     public void runSteps(int desiredSteps) {
@@ -203,6 +210,7 @@ public class Simulator {
     }
 
     public void displayGraph(int time) {
+        if(!silentMode) {
         /*final Display display = new Display(time);
         display.getServerFrame().pack();
         RefineryUtilities.centerFrameOnScreen(display.getServerFrame());
@@ -213,13 +221,14 @@ public class Simulator {
         display.getRobustnessFrame().pack();
         RefineryUtilities.centerFrameOnScreen(display.getRobustnessFrame());
         display.getRobustnessFrame().setVisible(true);*/
-        System.out.println("T=" + time);
-        /*System.out.println("A:" + applicationPool + System.getProperty("line.separator")
-                + "S:" + serverPool + System.getProperty("line.separator")
-                + "s:" + servicePool);*/
-        System.out.println(connexions);
-        if(dg != null) {
-            dg.displayGraph(connexions);
+            System.out.println("T=" + time);
+            System.out.println("A:" + applicationPool + System.getProperty("line.separator")
+                    + "S:" + serverPool + System.getProperty("line.separator")
+                    + "s:" + servicePool);
+            System.out.println(connections);
+            if (dg != null) {
+                dg.displayGraph(connections);
+            }
         }
     }
 
@@ -227,12 +236,12 @@ public class Simulator {
         //System.out.println("EVOLVE");
         Set<Server> serversToBeCloned = new LinkedHashSet<Server>();
         Set<Server> serversToBeRemoved = new LinkedHashSet<Server>();
-        for (Server server : Tools.getAliveServers(connexions)) {
-            double reproductionProbability = server.getCurrentConnectionNumber() / server.getMaxConnectionNumber() * 0.7;
+        for (Server server : Tools.getAliveServers(connections)) {
+            double reproductionProbability = (double)server.getCurrentConnectionNumber() / (double)server.getMaxConnectionNumber() * reproductionModificator;
             if (mtf.nextDouble() < reproductionProbability) {
                 serversToBeCloned.add(server);
             }
-            double deathProbability = 1 - reproductionProbability * 0.7;
+            double deathProbability = 1 - reproductionProbability * deathModificator;
             if (mtf.nextDouble() < deathProbability) {
                 serversToBeRemoved.add(server);
             }
@@ -242,19 +251,19 @@ public class Simulator {
             Server clone = new Server("S" + serverCounter, server.getAvailableServices(), server.getMaxConnectionNumber());
             clone.mutate();
             //serverPool.add(clone);
-            connexions.put(clone, new LinkedHashMap<Application, Set<Service>>());
+            connections.put(clone, new LinkedHashSet<Application>());
         }
         /*disconnectedApplications = new HashMap<Application, Set<Service>>();
         for(Server server : serversToBeRemoved) {
-            for(Application app : connexions.get(server).keySet()) {
+            for(Application app : connections.get(server).keySet()) {
                 if (!disconnectedApplications.containsKey(app)) {
                     disconnectedApplications.put(app, new LinkedHashSet<Service>());
                 }
-                disconnectedApplications.get(app).addAll(connexions.get(server).get(app));
+                disconnectedApplications.get(app).addAll(connections.get(server).get(app));
             }
             serverPool.remove(server);
         }*/
-        disconnectedApplications = Tools.killServers(connexions, Tools.getAliveServers(connexions), serversToBeRemoved);
+        disconnectedApplications = Tools.killServers(connections, Tools.getAliveServers(connections), serversToBeRemoved);
         //System.out.println("ES++" + serversToBeCloned);
         //System.out.println("ES--" + serversToBeRemoved);
         //System.out.println("before RL");
@@ -267,7 +276,7 @@ public class Simulator {
     public void evolveConstantPopulation() {
         List<Server> serversToBeCloned = new ArrayList<Server>();
         Set<Server> serversToBeRemoved = new LinkedHashSet<Server>();
-        List<Server> orderedServers = new ArrayList<>(Tools.getAliveServers(connexions));
+        List<Server> orderedServers = new ArrayList<>(Tools.getAliveServers(connections));
         Collections.sort(orderedServers, new Comparator<Server>() {
             @Override
             public int compare(Server o1, Server o2) {
@@ -288,9 +297,9 @@ public class Simulator {
             serverCounter++;
             Server clone = new Server("S" + serverCounter, server.getAvailableServices(), server.getMaxConnectionNumber());
             clone.mutate();
-            connexions.put(clone, new LinkedHashMap<Application, Set<Service>>());
+            connections.put(clone, new LinkedHashSet<Application>());
         }
-        disconnectedApplications = Tools.killServers(connexions, Tools.getAliveServers(connexions), serversToBeRemoved);
+        disconnectedApplications = Tools.killServers(connections, Tools.getAliveServers(connections), serversToBeRemoved);
         //System.out.println("before RL");
         //displayGraph(currentTime);
         relink();
@@ -299,60 +308,51 @@ public class Simulator {
     }
 
     public void initialLink() {
-        //System.out.println("ILINK");
-        List<Application> applicationsToBeRemoved = new ArrayList<Application>();
+        if(!silentMode) {
+            System.out.println("ILINK");
+        }
+        Set<Application> applicationsToBeRemoved = new LinkedHashSet<>();
         List<Application> sapp = new ArrayList<>(applicationPool);
         Collections.shuffle(sapp);
         applicationPool = new LinkedHashSet<>(sapp);
         for (Application app : applicationPool) {
             Set<Service> unsatisfiedServices = new LinkedHashSet<Service>(app.getRequiredServices());
-            //int serverIndex = 0;
             Iterator<Server> iterServer = serverPool.iterator();
-            while (!unsatisfiedServices.isEmpty() && iterServer.hasNext()/*serverIndex < serverPool.size()*/) {
-                Server server = iterServer.next();//serverPool.get(serverIndex);
-                Set<Service> matchingServices = Tools.getMatchingServices(unsatisfiedServices, server.getAvailableServices());
-                if (matchingServices.size() > 0 && server.canConnect()) {
-                    unsatisfiedServices.removeAll(matchingServices);
-                    if (!connexions.containsKey(server)) {
-                        connexions.put(server, new HashMap<Application, Set<Service>>());
-                    }
-                    connexions.get(server).put(app, matchingServices);
-                    server.addConnexion();
-                }
-                //serverIndex++;
-            }
-            if (!unsatisfiedServices.isEmpty()) {
-                applicationsToBeRemoved.add(app);
-            }
-        }
-        //System.out.println("AK " + applicationsToBeRemoved);
-        /*applicationPool.removeAll(applicationsToBeRemoved);
-        List<Server> serversToBeRemoved = new ArrayList<Server>();
-        for (Server server : serverPool) {
-            if (!connexions.containsKey(server)) {
-                serversToBeRemoved.add(server);
-            }
-        }
-        System.out.println("SK " + serversToBeRemoved);
-        serverPool.removeAll(serversToBeRemoved);*/
-        //System.out.println(connexions);
-    }
-
-    public void relink() {
-        //System.out.println("RELINK");
-        List<Application> applicationsToBeRemoved = new ArrayList<Application>();
-        for (Application app : disconnectedApplications.keySet()) {
-            Set<Service> unsatisfiedServices = new LinkedHashSet<Service>(disconnectedApplications.get(app));
-            Iterator<Server> iterServer = Tools.getAliveServers(connexions).iterator();
             while (!unsatisfiedServices.isEmpty() && iterServer.hasNext()) {
                 Server server = iterServer.next();
                 Set<Service> matchingServices = Tools.getMatchingServices(unsatisfiedServices, server.getAvailableServices());
                 if (matchingServices.size() > 0 && server.canConnect()) {
                     unsatisfiedServices.removeAll(matchingServices);
-                    if (!connexions.containsKey(server)) {
-                        connexions.put(server, new HashMap<Application, Set<Service>>());
+                    if (!connections.containsKey(server)) {
+                        connections.put(server, new LinkedHashSet<>());
                     }
-                    connexions.get(server).put(app, matchingServices);
+                    connections.get(server).add(app);
+                    server.addConnexion();
+                }
+            }
+            if (!unsatisfiedServices.isEmpty()) {
+                applicationsToBeRemoved.add(app);
+            }
+        }
+    }
+
+    public void relink() {
+        if(!silentMode) {
+            System.out.println("RELINK");
+        }
+        List<Application> applicationsToBeRemoved = new ArrayList<Application>();
+        for (Application app : disconnectedApplications) {
+            Set<Service> unsatisfiedServices = Tools.getUnsatisfiedServices(app, connections);
+            Iterator<Server> iterServer = Tools.getAliveServers(connections).iterator();
+            while (!unsatisfiedServices.isEmpty() && iterServer.hasNext()) {
+                Server server = iterServer.next();
+                Set<Service> matchingServices = Tools.getMatchingServices(unsatisfiedServices, server.getAvailableServices());
+                if (matchingServices.size() > 0 && server.canConnect()) {
+                    unsatisfiedServices.removeAll(matchingServices);
+                    if (!connections.containsKey(server)) {
+                        connections.put(server, new LinkedHashSet<Application>());
+                    }
+                    connections.get(server).add(app);
                     server.addConnexion();
                 }
             }
@@ -361,40 +361,40 @@ public class Simulator {
             }
         }
         Set<Server> serversToBeRemoved = new LinkedHashSet<Server>();
-        for (Server server : Tools.getAliveServers(connexions)) {
-            if (connexions.get(server).isEmpty()) {
+        for (Server server : Tools.getAliveServers(connections)) {
+            if (connections.get(server).isEmpty()) {
                 serversToBeRemoved.add(server);
             }
         }
         //System.out.println("SK:" + serversToBeRemoved.size());
-        Tools.killServers(connexions, Tools.getAliveServers(connexions), serversToBeRemoved);
+        Tools.killServers(connections, Tools.getAliveServers(connections), serversToBeRemoved);
         /*for (Server server : serversToBeRemoved) {
-            connexions.remove(server);
+            connections.remove(server);
         }*/
         //System.out.println("AK " + applicationsToBeRemoved);
         /*applicationPool.removeAll(applicationsToBeRemoved);
         List<Server> serversToBeRemoved = new ArrayList<Server>();
         for (Server server : serverPool) {
-            if (!connexions.containsKey(server)) {
+            if (!connections.containsKey(server)) {
                 serversToBeRemoved.add(server);
             }
         }*/
         //System.out.println("SK " + serversToBeRemoved);
         //serverPool.removeAll(serversToBeRemoved);
-        //System.out.println(connexions);
+        //System.out.println(connections);
     }
 
     public static void main(String[] args) {
         Simulator simulator = Simulator.getInstance();
-        simulator.warmup(1, true);
+        simulator.warmup(1, true, false);
         if(!useManager) {
             simulator.start(true);
         }
     }
 
     public String getParametersAsString() {
-        return "#A=" + Tools.getAliveApplications(connexions).size() + "/" + applicationPoolSize +
-                " | #S=" + Tools.getAliveServers(connexions).size() + "/" + serverPoolSize +
+        return "#A=" + Tools.getAliveApplications(connections).size() + "/" + applicationPoolSize +
+                " | #S=" + Tools.getAliveServers(connections).size() + "/" + serverPoolSize +
                 " | #s=" + servicePoolSize +
                 " | %mut=" + mutationProbability;
     }
@@ -427,8 +427,8 @@ public class Simulator {
         return serverPoolSize;
     }
 
-    public int getServerMaxConnexion() {
-        return serverMaxConnexion;
+    public int getServerMaxConnections() {
+        return serverMaxConnections;
     }
 
     public int getServicePoolSize() {
@@ -446,7 +446,7 @@ public class Simulator {
             oos.writeObject(servicePool);
             oos.writeObject(serverPool);
             oos.writeObject(applicationPool);
-            //oos.writeObject(connexions);
+            //oos.writeObject(connections);
             oos.flush();
             oos.close();
         } catch (IOException e) {
@@ -463,7 +463,7 @@ public class Simulator {
                 servicePool = (Set<Service>) ois.readObject();
                 serverPool = (Set<Server>) ois.readObject();
                 applicationPool = (Set<Application>) ois.readObject();
-                //connexions = (Map<Server, Map<Application, List<Service>>>)ois.readObject();
+                //connections = (Map<Server, Map<Application, List<Service>>>)ois.readObject();
                 ois.close();
             } catch (ClassNotFoundException e) {
                 e.printStackTrace();
@@ -474,6 +474,9 @@ public class Simulator {
     }
 
     public void forceInit() {
+        applicationPoolSize = 6;
+        serverPoolSize = 3;
+        servicePoolSize = 5;
         servicePool = new LinkedHashSet<Service>();
         for (serviceCounter = 0; serviceCounter < 5; serviceCounter++) {
             servicePool.add(new Service("s" + serviceCounter, serviceCounter, 0.2));
@@ -529,5 +532,7 @@ public class Simulator {
         sa6.add(servicePool.toArray(tmp)[1]);
         sa6.add(servicePool.toArray(tmp)[2]);
         applicationPool.add(new Application("A6", sa6));
+        connections = new LinkedHashMap<Server, Set<Application>>();
+        initialLink();
     }
 }

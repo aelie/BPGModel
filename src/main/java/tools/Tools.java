@@ -41,35 +41,36 @@ public class Tools {
         return result;
     }
 
-    public static double diversity(Map<Server, Map<Application, Set<Service>>> connections) {
+    public static double diversity(Map<Server, Set<Application>> connections) {
         SpeciesAndPopulation<Server> sap = new SpeciesAndPopulation<Server>(new ArrayList<Server>(getAliveServers(connections)));
         return sap.calculateShannon() / Math.log10(getAliveServers(connections).size());
     }
 
-    public static Map<Integer, List<Double>> robustness(Map<Server, Map<Application, Set<Service>>> connexions, int applicationPoolSize, int runs) {
+    public static Map<Integer, List<Double>> robustness(Map<Server, Set<Application>> connections, int applicationPoolSize, int runs) {
         Map<Integer, List<Double>> result = new HashMap<Integer, List<Double>>();
-        //double robustnessMax = getAliveServers(connexions).size() * getAliveApplications(connexions).size();
-        double robustnessMax = getAliveServers(connexions).size() * applicationPoolSize;//Simulator.getInstance().getApplicationPoolSize();
+        double robustnessMax = getAliveServers(connections).size() * applicationPoolSize;
         for (int i = 0; i < runs; i++) {
             if (robustnessMax > 0) {
                 List<Double> extinctionSequence = new ArrayList<Double>();
-                Map<Server, Map<Application, Set<Service>>> connectionsCopy = new LinkedHashMap<Server, Map<Application, Set<Service>>>(connexions);
-                //Set<Server> serversCopy = new LinkedHashSet<Server>(getAliveServers(connexions));
-                Set<Server> serversCopy = shuffleSet(getAliveServers(connexions));
-                //Set<Application> applicationsCopy = new LinkedHashSet<Application>(getAliveApplications(connexions));
-                Set<Application> applicationsCopy = shuffleSet(getAliveApplications(connexions));
+                Map<Server, Set<Application>> connectionsCopy = new LinkedHashMap<Server, Set<Application>>(connections);
+                Set<Server> serversCopy = shuffleSet(getAliveServers(connections));
+                Set<Application> applicationsCopy = new LinkedHashSet<>(getAliveApplications(connections));
                 double robustness = 0;
-                Set<Server> connexionServers = shuffleSet(connexions.keySet());
-                for (int j = 0; j < /*connexions.keySet()*/connexionServers.size(); j++) {
-                    Iterator<Server> serverIter = /*connexions.keySet()*/connexionServers.iterator();
-                    while (serversCopy.size() > 0) {
-                        Server s = serverIter.next();
+                //Set<Server> shuffledServers = shuffleSet(connections.keySet());
+                //for (int j = 0; j < shuffledServers.size(); j++) {
+                    Iterator<Server> serverIter = /*shuffledServers*/shuffleSet(connections.keySet()).iterator();
+                //for(Server server : shuffleSet(connections.keySet())) {
+                    while (/*serversCopy.size() > 0*/serverIter.hasNext()) {
+                        Server server = serverIter.next();
                         robustness += applicationsCopy.size();
                         extinctionSequence.add((double) applicationsCopy.size());
-                        applicationsCopy.removeAll(killServer(connectionsCopy, serversCopy, s).keySet());
+                        applicationsCopy.removeAll(killServer(connectionsCopy, serversCopy, server));
                     }
-                }
+                //}
+                //first index: robustness
                 extinctionSequence.add(0, robustness / robustnessMax);
+                //last index: 0.0
+                extinctionSequence.add(0.0);
                 result.put(i, extinctionSequence);
             } else {
                 result.put(i, new ArrayList<>(Arrays.asList(0.0, 0.0)));
@@ -78,14 +79,14 @@ public class Tools {
         return result;
     }// save history, run 30 times, 10%R, 25%R, 100%R
 
-    public static Set<Server> getAliveServers(Map<Server, Map<Application, Set<Service>>> connections) {
-        return connections.keySet();
+    public static Set<Server> getAliveServers(Map<Server, Set<Application>> connexions) {
+        return connexions.keySet();
     }
 
-    public static Set<Application> getAliveApplications(Map<Server, Map<Application, Set<Service>>> connections) {
+    public static Set<Application> getAliveApplications(Map<Server, Set<Application>> connections) {
         Set<Application> result = new LinkedHashSet<Application>();
         for (Server server : connections.keySet()) {
-            result.addAll(connections.get(server).keySet());
+            result.addAll(connections.get(server));
         }
         return result;
     }
@@ -96,37 +97,57 @@ public class Tools {
         return new LinkedHashSet<T>(setAsList);
     }
 
-    public static Set<Server> getProvidingServers(Application application, Map<Server, Map<Application, Set<Service>>> connexions) {
+    public static Set<Server> getProvidingServers(Application application, Map<Server, Set<Application>> connexions) {
         Set<Server> providingServers = new LinkedHashSet<>();
         for(Server server : connexions.keySet()) {
-            if(connexions.get(server).containsKey(application)) {
+            if(connexions.get(server).contains(application)) {
                 providingServers.add(server);
             }
         }
         return providingServers;
     }
 
-    public static Set<Application> getSatisfiedApplications(Server server, Map<Server, Map<Application, Set<Service>>> connexions) {
-        return connexions.get(server).keySet();
+    public static Set<Application> getSatisfiedApplications(Server server, Map<Server, Set<Application>> connexions) {
+        return connexions.get(server);
     }
 
-    public static Map<Application, Set<Service>> killServers(Map<Server, Map<Application, Set<Service>>> graphConnections, Set<Server> initialServers, Set<Server> serversToBeKilled) {
-        Map<Application, Set<Service>> disconnectedApplications = new HashMap<Application, Set<Service>>();
-        for (Server server : serversToBeKilled) {
-            for (Application app : graphConnections.get(server).keySet()) {
-                if (!disconnectedApplications.containsKey(app)) {
-                    disconnectedApplications.put(app, new LinkedHashSet<Service>());
-                }
-                disconnectedApplications.get(app).addAll(graphConnections.get(server).get(app));
+    public static Set<Service> getUnsatisfiedServices(Application application, Map<Server, Set<Application>> connexions) {
+        Set<Service> unsatisfiedServices = new LinkedHashSet<>(application.getRequiredServices());
+        for(Server server : connexions.keySet()) {
+            if(connexions.get(server).contains(application)) {
+                unsatisfiedServices.removeAll(getMatchingServices(server.getAvailableServices(), application.getRequiredServices()));
             }
+        }
+        return unsatisfiedServices;
+    }
+
+    public static boolean isApplicationSatisfied(Application application, Map<Server, Set<Application>> connections) {
+        Set<Service> services = new LinkedHashSet<>(application.getRequiredServices());
+        for(Server server : connections.keySet()) {
+            if(connections.get(server).contains(application)) {
+                services.removeAll(server.getAvailableServices());
+            }
+        }
+        return services.isEmpty();
+    }
+
+    public static Set<Application> killServers(Map<Server, Set<Application>> connections, Set<Server> initialServers, Set<Server> serversToBeKilled) {
+        Set<Application> disconnectedApplications = new LinkedHashSet<>();
+        for (Server server : serversToBeKilled) {
+            Set<Application> linkedApplications = connections.get(server);
             initialServers.remove(server);
-            graphConnections.remove(server);
+            connections.remove(server);
+            for (Application application : linkedApplications) {
+                if(!isApplicationSatisfied(application, connections)) {
+                    disconnectedApplications.add(application);
+                }
+            }
         }
         return disconnectedApplications;
     }
 
-    public static Map<Application, Set<Service>> killServer(Map<Server, Map<Application, Set<Service>>> graphConnections, Set<Server> initialServers, Server serverToBeKilled) {
+    public static Set<Application> killServer(Map<Server, Set<Application>> connections, Set<Server> initialServers, Server serverToBeKilled) {
         Set<Server> singleServerSet = Collections.singleton(serverToBeKilled);
-        return killServers(graphConnections, initialServers, singleServerSet);
+        return killServers(connections, initialServers, singleServerSet);
     }
 }
