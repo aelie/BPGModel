@@ -30,7 +30,7 @@ public class Variator {
             pw_RD.println("Parameters,I10%,F10%,D10%,I30%,F30%,D30%,Initial,Final,Difference");
             Simulator simulator;
             for (int applicationPoolSize = 100; applicationPoolSize < 1001; applicationPoolSize += 100) {
-                for (int serverPoolSize = 50; serverPoolSize < 751; serverPoolSize += 50) {
+                for (int serverPoolSize = 50; serverPoolSize < 751 && serverPoolSize <= applicationPoolSize; serverPoolSize += 100) {
                     for (int servicePoolSize = 10; servicePoolSize < 311; servicePoolSize += 100) {
                         for (double mutationProbability = 0.2; mutationProbability < 0.7; mutationProbability += 0.1) {
                             for (int serverMaxConnexion = 10; serverMaxConnexion < 51; serverMaxConnexion += 10) {
@@ -50,7 +50,7 @@ public class Variator {
                                             maxTime, robustnessRuns);
                                     simulator.warmup((int) System.currentTimeMillis(), true, true);
                                     simulator.start(false);
-                                    List<Map<Integer, List<Double>>> result = Simulator.getInstance().getRobustnessResults();
+                                    Map<Integer, Map<Integer, List<Double>>> result = Simulator.getInstance().getRobustnessHistory();
                                     //initial
                                     for (Integer index : result.get(0).keySet()) {
                                         /*pw_R.print(variables + "," + graph + "," + 0 + "," + index);

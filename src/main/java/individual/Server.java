@@ -26,7 +26,7 @@ public class Server implements Serializable {
     public void mutate() {
         Set<Service> mutatedServices = new LinkedHashSet<Service>();
         for(Service service : Simulator.getInstance().getServicePool()) {
-            if(Simulator.getInstance().getMtf().nextDouble() < service.getMutationProbability()) {
+            if(Simulator.getInstance().getRandom().nextDouble() < service.getMutationProbability()) {
                 if(!availableServices.contains(service)) {
                     mutatedServices.add(service);
                 }
@@ -75,16 +75,24 @@ public class Server implements Serializable {
         return currentConnectionNumber > 0;
     }
 
-    public void addConnexion() {
-        currentConnectionNumber++;
+    public void addConnection() {
+        if(canConnect()) {
+            currentConnectionNumber++;
+        } else {
+            System.err.println("Server " + name + " can't add connection");
+        }
+    }
+
+    public void removeConnection() {
+        if(canDisconnect()) {
+            currentConnectionNumber--;
+        } else {
+            System.err.println("Server " + name + " can't remove connection");
+        }
     }
 
     public void disconnect() {
         currentConnectionNumber = 0;
-    }
-
-    public void removeConnection() {
-        currentConnectionNumber--;
     }
 
     public String toString() {

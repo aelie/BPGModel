@@ -10,6 +10,8 @@ import java.util.Set;
  */
 public class Application implements Serializable {
     String name;
+    Application father = null;
+    Application mother = null;
     Set<Service> requiredServices;
     //int age;
 
@@ -24,6 +26,11 @@ public class Application implements Serializable {
 
     public void setRequiredServices(Set<Service> requiredServices) {
         this.requiredServices = requiredServices;
+    }
+
+    public void setParents(Application father, Application mother) {
+        this.father = father;
+        this.mother = mother;
     }
 
     public String toString() {

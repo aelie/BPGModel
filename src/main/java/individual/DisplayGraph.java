@@ -54,19 +54,19 @@ public class DisplayGraph {
         }
     }
 
-    public void displayGraph(Map<Server, Set<Application>> connexions) {
+    public void displayGraph(Map<Server, Set<Application>> connections) {
         graph.clear();
-        if(connexions != null) {
+        if(connections != null) {
             int serverCounter = 0;
             int applicationCounter = 0;
-            for (Server server : connexions.keySet()) {
+            for (Server server : connections.keySet()) {
                 Node serverNode;
                 if((serverNode = graph.getNode(server.toString())) == null) {
                     serverNode = graph.addNode(server.toString());
                     serverNode.setAttribute("ui.label", serverNode.getId());
                     serverNode.setAttribute("xyz", serverCounter, 0, 0);
                 }
-                for (Application application : connexions.get(server)) {
+                for (Application application : connections.get(server)) {
                     Node applicationNode;
                     if(graph.getNode(application.toString()) == null) {
                         applicationNode = graph.addNode(application.toString());
