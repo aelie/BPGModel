@@ -7,6 +7,7 @@ import individual.Simulator;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * Created by aelie on 18/09/14.
@@ -69,6 +70,26 @@ public class Tools {
         return extinctionSequence;
     }
 
+    public static Map<Integer, List<Double>> robustnessParallel(Map<Server, Set<Application>> connections, int runs) {
+        Map<Integer, List<Double>> result = new HashMap<>();
+        ExecutorService es = Executors.newCachedThreadPool();
+        List<Callable<List<Double>>> callables = new ArrayList<>();
+        for (int i = 0; i < runs; i++) {
+            callables.add(() -> robustness(connections));
+        }
+        try {
+            int index = 0;
+            for (Future<List<Double>> future : es.invokeAll(callables)) {
+                result.put(index, future.get());
+                index++;
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        es.shutdown();
+        return result;
+    }
+
     public static Map<Integer, List<Double>> robustnessMultiRun(Map<Server, Set<Application>> connections, int runs) {
         Map<Integer, List<Double>> result = new HashMap<>();
         double robustnessMax = getAliveServers(connections).size() * getAliveApplications(connections).size();
@@ -114,8 +135,8 @@ public class Tools {
                     Server server = serverIter.next();
                     Iterator<Service> serviceIter = deadlyServices.iterator();
                     boolean infected = false;
-                    while(serviceIter.hasNext() && !infected) {
-                        if(server.getAvailableServices().contains(serviceIter.next())) {
+                    while (serviceIter.hasNext() && !infected) {
+                        if (server.getAvailableServices().contains(serviceIter.next())) {
                             robustness += applicationsCopy.size();
                             extinctionSequence.add((double) applicationsCopy.size());
                             applicationsCopy.removeAll(killServer(connectionsCopy, serversCopy, server));
@@ -216,6 +237,6 @@ public class Tools {
     }
 
     public static <E> E getRandomElement(Set<E> set) {
-        return new ArrayList<>(set).get((int)(Simulator.getInstance().getRandom().nextDouble() * set.size()));
+        return new ArrayList<>(set).get((int) (Simulator.getInstance().getRandom().nextDouble() * set.size()));
     }
 }

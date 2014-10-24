@@ -107,7 +107,7 @@ public class Simulator {
         //displayGraph(-1);
         initialDiversity = Tools.diversity(connections);
         robustnessHistory = new HashMap<>();
-        robustnessHistory.put(0, Tools.robustnessMultiRun(connections, robustnessRuns));
+        robustnessHistory.put(0, Tools./*robustnessMultiRun*/robustnessParallel(connections, robustnessRuns));
         contagionResults = new ArrayList<Map<Integer, List<Double>>>();
         contagionResults.add(Tools.serviceAttackES(connections, contagionRuns, 1));
         costHistory = new HashMap<>();
@@ -237,7 +237,7 @@ public class Simulator {
                     .mapToInt(application -> application.getRequiredServices().size())
                     .summaryStatistics()
                     .getAverage());
-            cost.put("Diversity", Tools.diversity(connections));
+            //cost.put("Diversity", Tools.diversity(connections));
             //weighed links
             double linkWeight = 0;
             for (Server server : connections.keySet()) {
@@ -247,7 +247,7 @@ public class Simulator {
             }
             cost.put("WeighedLinks", linkWeight / totalLinks);
             costHistory.put(currentTime, cost);
-            robustnessHistory.put(currentTime, Tools.robustnessMultiRun(connections, robustnessRuns));
+            robustnessHistory.put(currentTime, Tools./*robustnessMultiRun*/robustnessParallel(connections, robustnessRuns));
             serverHistory.put(currentTime, Tools.getAliveServers(connections));
             applicationHistory.put(currentTime, Tools.getAliveApplications(connections));
         }
