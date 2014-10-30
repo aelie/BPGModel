@@ -1,9 +1,6 @@
 package tools;
 
-import individual.Application;
-import individual.Server;
-import individual.Service;
-import individual.Simulator;
+import individual.*;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 import java.util.*;
@@ -40,9 +37,36 @@ public class Tools {
         return result;
     }
 
-    public static double diversity(Map<Server, Set<Application>> connections) {
-        SpeciesAndPopulation<Server> sap = new SpeciesAndPopulation<>(new ArrayList<>(getAliveServers(connections)));
-        return sap.calculateShannon() / Math.log10(getAliveServers(connections).size());
+    public static double diversity(Set<? extends Actor> actors) {
+        SpeciesAndPopulation<Actor> sap = new SpeciesAndPopulation<>(new ArrayList<>(actors));
+        return sap.calculateShannon();
+    }
+
+    public static double richness(Set<? extends Actor> actors) {
+        SpeciesAndPopulation<Actor> sap = new SpeciesAndPopulation<>(new ArrayList<>(actors));
+        return (double)sap.getNumSpecies() / (double)actors.size();
+    }
+
+    public static double evenness(Set<? extends Actor> actors) {
+        return diversity(actors) / Math.log10(richness(actors) * actors.size());
+    }
+
+    public static double jaccard(Actor actor1, Actor actor2) {
+        Set<Service> union = new LinkedHashSet<>(actor1.getServices());
+        union.addAll(actor2.getServices());
+        return getMatchingServices(actor1.getServices(), actor2.getServices()).size() / union.size();
+    }
+
+    public static double disparity(Set<? extends Actor> actors) {
+        double sum = 0;
+        for(Actor actor : actors) {
+            for(Actor otherActor : actors) {
+                if(actor != otherActor) {
+                    sum += jaccard(actor, otherActor);
+                }
+            }
+        }
+        return sum / (double)(actors.size() * (actors.size() - 1));
     }
 
     public static List<Double> robustness(Map<Server, Set<Application>> connections) {
@@ -136,7 +160,7 @@ public class Tools {
                     Iterator<Service> serviceIter = deadlyServices.iterator();
                     boolean infected = false;
                     while (serviceIter.hasNext() && !infected) {
-                        if (server.getAvailableServices().contains(serviceIter.next())) {
+                        if (server.getServices().contains(serviceIter.next())) {
                             robustness += applicationsCopy.size();
                             extinctionSequence.add((double) applicationsCopy.size());
                             applicationsCopy.removeAll(killServer(connectionsCopy, serversCopy, server));
@@ -197,20 +221,20 @@ public class Tools {
     }
 
     public static Set<Service> getUnsatisfiedServices(Application application, Map<Server, Set<Application>> connections) {
-        Set<Service> unsatisfiedServices = new LinkedHashSet<>(application.getRequiredServices());
+        Set<Service> unsatisfiedServices = new LinkedHashSet<>(application.getServices());
         for (Server server : connections.keySet()) {
             if (connections.get(server).contains(application)) {
-                unsatisfiedServices.removeAll(getMatchingServices(server.getAvailableServices(), application.getRequiredServices()));
+                unsatisfiedServices.removeAll(getMatchingServices(server.getServices(), application.getServices()));
             }
         }
         return unsatisfiedServices;
     }
 
     public static boolean isApplicationSatisfied(Application application, Map<Server, Set<Application>> connections) {
-        Set<Service> services = new LinkedHashSet<>(application.getRequiredServices());
+        Set<Service> services = new LinkedHashSet<>(application.getServices());
         for (Server server : connections.keySet()) {
             if (connections.get(server).contains(application)) {
-                services.removeAll(server.getAvailableServices());
+                services.removeAll(server.getServices());
             }
         }
         return services.isEmpty();

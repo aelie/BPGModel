@@ -2,13 +2,10 @@ package individual;
 
 import org.graphstream.graph.Graph;
 import org.graphstream.graph.Node;
-import org.graphstream.graph.implementations.MultiGraph;
 import org.graphstream.graph.implementations.SingleGraph;
-import org.graphstream.ui.swingViewer.View;
 import org.graphstream.ui.swingViewer.Viewer;
 import tools.Tools;
 
-import javax.swing.*;
 import java.util.Map;
 import java.util.Set;
 
@@ -78,7 +75,7 @@ public class DisplayGraph {
                         applicationNode = graph.getNode(application.toString());
                     }
                     String edgeName = applicationNode.getAttribute("ui.label");
-                    for (Service service : Tools.getMatchingServices(server.getAvailableServices(), application.getRequiredServices())) {
+                    for (Service service : Tools.getMatchingServices(server.getServices(), application.getServices())) {
                         edgeName += service.getName() + "-";
                     }
                     if(graph.getEdge(edgeName) == null) {

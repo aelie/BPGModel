@@ -1,31 +1,39 @@
 package individual;
 
 import java.io.Serializable;
-import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
  * Created by aelie on 03/09/14.
  */
-public class Application implements Serializable {
+public class Application implements Actor, Serializable {
     String name;
     Application father = null;
     Application mother = null;
-    Set<Service> requiredServices;
+    Set<Service> services;
     //int age;
 
-    public Application(String name, Set<Service> requiredServices) {
+    public Application(String name, Set<Service> services) {
         this.name = name;
-        this.requiredServices = requiredServices;
+        this.services = services;
     }
 
-    public Set<Service> getRequiredServices() {
-        return requiredServices;
+    @Override
+    public String getName() {
+        return name;
     }
 
-    public void setRequiredServices(Set<Service> requiredServices) {
-        this.requiredServices = requiredServices;
+    @Override
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Set<Service> getServices() {
+        return services;
+    }
+
+    public void setServices(Set<Service> services) {
+        this.services = services;
     }
 
     public void setParents(Application father, Application mother) {

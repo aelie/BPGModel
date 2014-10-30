@@ -5,17 +5,17 @@ import java.util.*;
 /**
  * Created by aelie on 03/09/14.
  */
-public class Server implements Serializable {
+public class Server implements Actor, Serializable {
     String name;
-    Set<Service> availableServices;
+    Set<Service> services;
     int maxConnectionNumber;
     int currentConnectionNumber = 0; //nombre applicationPool connectées
     //int neededResource;
     //int age;
 
-    public Server(String name, Set<Service> availableServices, int maxConnectionNumber) {
+    public Server(String name, Set<Service> services, int maxConnectionNumber) {
         this.name = name;
-        this.availableServices = availableServices;
+        this.services = services;
         this.maxConnectionNumber = maxConnectionNumber;
     }
 
@@ -27,28 +27,38 @@ public class Server implements Serializable {
         Set<Service> mutatedServices = new LinkedHashSet<Service>();
         for(Service service : Simulator.getInstance().getServicePool()) {
             if(Simulator.getInstance().getRandom().nextDouble() < service.getMutationProbability()) {
-                if(!availableServices.contains(service)) {
+                if(!services.contains(service)) {
                     mutatedServices.add(service);
                 }
             } else {
-                if(availableServices.contains(service)) {
+                if(services.contains(service)) {
                     mutatedServices.add(service);
                 }
             }
         }
-        availableServices = mutatedServices;
+        services = mutatedServices;
     }
 
-    public Set<Service> getAvailableServices() {
-        return availableServices;
+    @Override
+    public String getName() {
+        return name;
     }
 
-    public void setAvailableServices(Set<Service> availableServices) {
-        this.availableServices = availableServices;
+    @Override
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Set<Service> getServices() {
+        return services;
+    }
+
+    public void setServices(Set<Service> services) {
+        this.services = services;
     }
 
     public int evaluateNeededResource() {
-        return availableServices.size() + maxConnectionNumber + currentConnectionNumber;
+        return services.size() + maxConnectionNumber + currentConnectionNumber;
     }
 
     public int getMaxConnectionNumber() {

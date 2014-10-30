@@ -1,5 +1,6 @@
 package tools;
 
+import individual.Actor;
 import individual.Server;
 import individual.Service;
 
@@ -16,7 +17,7 @@ import java.util.Map;
  *
  * @author Hui Song
  */
-public class SpeciesAndPopulation<E extends Server> {
+public class SpeciesAndPopulation<E extends Actor> {
 
     private List<E> entities = null;
     private Map<BigInteger, Integer> species = null;
@@ -24,6 +25,7 @@ public class SpeciesAndPopulation<E extends Server> {
 
     public SpeciesAndPopulation(List<E> entities) {
         this.entities = entities;
+        countSpecies();
     }
 
     public BigInteger encode(List<Service> dna) {
@@ -38,7 +40,7 @@ public class SpeciesAndPopulation<E extends Server> {
     public Map<E, BigInteger> encodeEntityList(List<E> entities) {
         Map<E, BigInteger> code = new HashMap<E, BigInteger>();
         for (E e : entities)
-            code.put(e, encode(new ArrayList<Service>(e.getAvailableServices())));
+            code.put(e, encode(new ArrayList<Service>(e.getServices())));
         return code;
     }
 
