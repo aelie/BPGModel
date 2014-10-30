@@ -1,4 +1,7 @@
 .idea/**
 target/**
+charts/**
+classes/**
+META-INF/**
 BPGModel.iml
 pom.xml
