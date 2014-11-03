@@ -220,9 +220,7 @@ public class Charts {
             series.get("RobustnessValue10").add((double) step, value10);
             series.get("RobustnessValue30").add((double) step, value30);
         }
-        for (XYSeries serie : series.values()) {
-            dataset.addSeries(serie);
-        }
+        series.values().forEach(dataset::addSeries);
 
         return dataset;
     }
@@ -339,11 +337,7 @@ public class Charts {
                     file = new File(fullFolder + System.getProperty("file.separator") + title + ".png");
                     clone = (JFreeChart) (chartByTitle.get(title).clone());
                     ChartUtilities.saveChartAsPNG(file, clone, 1500, 800);
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (CloneNotSupportedException e) {
+                } catch (IOException | CloneNotSupportedException e) {
                     e.printStackTrace();
                 }
             }
@@ -354,9 +348,7 @@ public class Charts {
             PrintWriter pw_R = new PrintWriter(fullFolder + System.getProperty("file.separator") + "parameters.txt", "UTF-8");
             pw_R.println(Simulator.getInstance().getParametersAsString());
             pw_R.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (UnsupportedEncodingException e) {
+        } catch (FileNotFoundException | UnsupportedEncodingException e) {
             e.printStackTrace();
         }
     }
