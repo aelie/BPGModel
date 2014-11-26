@@ -10,6 +10,8 @@ import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.SeriesRenderingOrder;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.category.BarRenderer;
+import org.jfree.chart.renderer.category.StandardBarPainter;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.xy.XYSeries;
@@ -242,6 +244,7 @@ public class Charts {
         // get a reference to the plot for further customisation...
         final CategoryPlot plot = chart.getCategoryPlot();
         plot.setBackgroundPaint(Color.lightGray);
+        ((BarRenderer) plot.getRenderer()).setBarPainter(new StandardBarPainter());
         //plot.setDomainGridlinePaint(Color.white);
         //plot.setRangeGridlinePaint(Color.white);
 

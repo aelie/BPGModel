@@ -20,10 +20,10 @@ import java.util.stream.Collectors;
  */
 public class Simulator {
     static String currentPath;
-    static int maxTime = 5000;
+    static int maxTime = 500;
     static boolean useManager = false;
     private static Simulator INSTANCE;
-    double serverReproductionModificator = 1;
+    double serverReproductionModifier = 1;
     double applicationReproductionProbability = 0.31;
     double applicationDeathProbability = 0.3;
     double mutationProbability = 0.2;
@@ -32,6 +32,9 @@ public class Simulator {
     int serverMaxConnections = 18;
     int servicePoolSize = 50;
     double serviceListRatio = 0.2;
+    double generatorLambda = 0.25;
+    double generatorUniform = 0.005;
+    int generatorPoisson = 6;
     Set<Server> serverPool;
     Set<Application> applicationPool;
     Set<Service> servicePool;
@@ -132,8 +135,8 @@ public class Simulator {
         applicationPool = new LinkedHashSet<>();
         connections = new LinkedHashMap<>();
         if (fromFFBPG) {
-            IntegerGenerator sizes_generator = Facade.getPoissonIntegerGenerator(6);
-            IntegerSetGenerator srv_generator = Facade.getNegExpIntegerSetGenerator(0.25, 0.005);
+            IntegerGenerator sizes_generator = Facade.getPoissonIntegerGenerator(generatorPoisson);
+            IntegerSetGenerator srv_generator = Facade.getNegExpIntegerSetGenerator(generatorLambda, generatorUniform);
             BPGraph ffbpg = Facade.createRandomBPGraph(applicationPoolSize, serverPoolSize, servicePoolSize,
                     sizes_generator, srv_generator, serverPoolSize, serverMaxConnections);
             for (Integer serviceId : ffbpg.getAllUsedServices().toArray()) {
@@ -242,10 +245,10 @@ public class Simulator {
                     .mapToInt(application -> application.getServices().size())
                     .summaryStatistics()
                     .getAverage());
-            cost.put("Diversity", Tools.diversity(Tools.getAliveServers(connections)));
-            cost.put("Richness", Tools.richness(Tools.getAliveServers(connections)));
+            //cost.put("Diversity", Tools.diversity(Tools.getAliveServers(connections)));
+            //cost.put("Richness", Tools.richness(Tools.getAliveServers(connections)));
             cost.put("Evenness", Tools.evenness(Tools.getAliveServers(connections)));
-            cost.put("Disparity", Tools.disparity(Tools.getAliveServers(connections)));
+            //cost.put("Disparity", Tools.disparity(Tools.getAliveServers(connections)));
             //weighed links
             double linkWeight = 0;
             for (Server server : connections.keySet()) {
@@ -299,7 +302,7 @@ public class Simulator {
         Set<Server> serversToBeCloned = new LinkedHashSet<>();
         Set<Server> serversToBeRemoved = new LinkedHashSet<>();
         for (Server server : Tools.getAliveServers(connections)) {
-            double reproductionProbability = (double) server.getCurrentConnectionNumber() / (double) server.getMaxConnectionNumber() * serverReproductionModificator;
+            double reproductionProbability = (double) server.getCurrentConnectionNumber() / (double) server.getMaxConnectionNumber() * serverReproductionModifier;
             if (getRandom().nextDouble() < reproductionProbability) {
                 serversToBeCloned.add(server);
             }
@@ -386,12 +389,10 @@ public class Simulator {
                     //System.out.println(service);
                     //System.out.println(server + ":" + server.getServices());
                     server.getServices().remove(service);
-                    Set<Application> toDisconnect = new LinkedHashSet<>();
-                    for (Application application : connections.get(server)) {
-                        if (Tools.getMatchingServices(application.getServices(), server.getServices()).size() == 0) {
-                            toDisconnect.add(application);
-                        }
-                    }
+                    Set<Application> toDisconnect = connections.get(server).stream()
+                            .filter(application -> Tools.getMatchingServices(application.getServices(),
+                                    server.getServices()).size() == 0)
+                            .collect(Collectors.toCollection(() -> new LinkedHashSet<>()));
                     for (Application application : toDisconnect) {
                         connections.get(server).remove(application);
                         if (Tools.isApplicationSatisfied(application, connections)) {
@@ -424,7 +425,7 @@ public class Simulator {
                 o1.getCurrentConnectionNumber() / o1.getMaxConnectionNumber() -
                         o2.getCurrentConnectionNumber() / o2.getMaxConnectionNumber());
         for (Server server : orderedServers) {
-            double reproductionProbability = server.getCurrentConnectionNumber() / server.getMaxConnectionNumber() * serverReproductionModificator;
+            double reproductionProbability = server.getCurrentConnectionNumber() / server.getMaxConnectionNumber() * serverReproductionModifier;
             if (getRandom().nextDouble() < reproductionProbability) {
                 serversToBeCloned.add(server);
                 serversToBeRemoved.add(orderedServers.get(orderedServers.size() - serversToBeCloned.size()));
@@ -516,7 +517,8 @@ public class Simulator {
                 " | appRepro=" + applicationReproductionProbability +
                 " | appDeath=" + applicationDeathProbability +
                 " | robRuns=" + robustnessRuns +
-                " | %mut=" + mutationProbability;
+                " | %mut=" + mutationProbability +
+                " | Poisson/lambda/uniform=" + generatorPoisson + "/" + generatorLambda + "/" + generatorUniform;
     }
 
     public Map<String, Double> outputResults() {
