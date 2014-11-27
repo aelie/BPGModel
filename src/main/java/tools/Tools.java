@@ -11,6 +11,10 @@ import java.util.concurrent.*;
  */
 public class Tools {
 
+    public static final int FORWARD_ORDER = 1;
+    public static final int SHUFFLE_ORDER = 0;
+    public static final int BACKWARD_ORDER = -1;
+
     public static Set<Service> extractServiceList(Set<Service> services, double serviceListRatio) {
         int size = (int) ((services.size() * serviceListRatio) + (Simulator.getInstance().getRandom().nextDouble() * ((1 - 2 * serviceListRatio) * services.size())));
         Set<Service> result = new HashSet<Service>();
@@ -69,7 +73,7 @@ public class Tools {
         return sum / (double)(actors.size() * (actors.size() - 1));
     }
 
-    public static List<Double> robustness(Map<Server, Set<Application>> connections) {
+    public static List<Double> robustness(Map<Server, Set<Application>> connections, int direction) {
         List<Double> extinctionSequence = new ArrayList<>();
         double robustnessMax = getAliveServers(connections).size() * getAliveApplications(connections).size();
         if (robustnessMax > 0) {
@@ -77,9 +81,7 @@ public class Tools {
             Set<Server> serversCopy = shuffleSet(getAliveServers(connections));
             Set<Application> applicationsCopy = new LinkedHashSet<>(getAliveApplications(connections));
             SummaryStatistics robustness = new SummaryStatistics();
-            Iterator<Server> serverIter = shuffleSet(connections.keySet()).iterator();
-            while (serverIter.hasNext()) {
-                Server server = serverIter.next();
+            for (Server server : orderSet(connections.keySet(), direction)) {
                 robustness.addValue(applicationsCopy.size());
                 extinctionSequence.add((double) applicationsCopy.size());
                 applicationsCopy.removeAll(killServer(connectionsCopy, serversCopy, server));
@@ -94,12 +96,12 @@ public class Tools {
         return extinctionSequence;
     }
 
-    public static Map<Integer, List<Double>> robustnessParallel(Map<Server, Set<Application>> connections, int runs) {
+    public static Map<Integer, List<Double>> robustnessParallel(Map<Server, Set<Application>> connections, int runs, int direction) {
         Map<Integer, List<Double>> result = new HashMap<>();
         ExecutorService es = Executors.newCachedThreadPool();
         List<Callable<List<Double>>> callables = new ArrayList<>();
         for (int i = 0; i < runs; i++) {
-            callables.add(() -> robustness(connections));
+            callables.add(() -> robustness(connections, direction));
         }
         try {
             int index = 0;
@@ -154,9 +156,7 @@ public class Tools {
                 Set<Application> applicationsCopy = new LinkedHashSet<>(getAliveApplications(connections));
                 Set<Service> deadlyServices = new LinkedHashSet<>(new ArrayList<>(shuffleSet(Simulator.getInstance().getServicePool())).subList(0, deadlyServicesAmount));
                 double robustness = 0;
-                Iterator<Server> serverIter = shuffleSet(connections.keySet()).iterator();
-                while (serverIter.hasNext()) {
-                    Server server = serverIter.next();
+                for (Server server : shuffleSet(connections.keySet())) {
                     Iterator<Service> serviceIter = deadlyServices.iterator();
                     boolean infected = false;
                     while (serviceIter.hasNext() && !infected) {
@@ -196,6 +196,16 @@ public class Tools {
         List<T> setAsList = new ArrayList<>(set);
         Collections.shuffle(setAsList, Simulator.getInstance().getRandom());
         return new LinkedHashSet<T>(setAsList);
+    }
+
+    public static <T extends Actor> Set<T> orderSet(Set<T> set, int direction) {
+        if(direction != SHUFFLE_ORDER) {
+            List<T> list = new ArrayList<>(set);
+            Collections.sort(list, (o1, o2) -> direction * (o1.getServices().size() - o2.getServices().size()));
+            return new LinkedHashSet<>(list);
+        } else {
+            return shuffleSet(set);
+        }
     }
 
     public static Set<Server> getProvidingServers(Application application, Map<Server, Set<Application>> connections) {

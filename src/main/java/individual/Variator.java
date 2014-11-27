@@ -50,7 +50,7 @@ public class Variator {
                                             maxTime, robustnessRuns);
                                     simulator.warmup((int) System.currentTimeMillis(), true, true);
                                     simulator.start(false);
-                                    Map<Integer, Map<Integer, List<Double>>> result = Simulator.getInstance().getRobustnessHistory();
+                                    Map<Integer, Map<Integer, List<Double>>> result = Simulator.getInstance().getRobustnessShuffleHistory();
                                     //initial
                                     for (Integer index : result.get(0).keySet()) {
                                         /*pw_R.print(variables + "," + graph + "," + 0 + "," + index);

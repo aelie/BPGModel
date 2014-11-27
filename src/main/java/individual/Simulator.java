@@ -47,7 +47,9 @@ public class Simulator {
     Map<Server, Set<Application>> connections;
     Set<Application> disconnectedApplications;
     int robustnessRuns = 50;
-    Map<Integer, Map<Integer, List<Double>>> robustnessHistory;
+    Map<Integer, Map<Integer, List<Double>>> robustnessShuffleHistory;
+    Map<Integer, Map<Integer, List<Double>>> robustnessForwardHistory;
+    Map<Integer, Map<Integer, List<Double>>> robustnessBackwardHistory;
     int contagionRuns = 30;
     List<Map<Integer, List<Double>>> contagionResults;
     Map<Integer, Map<String, Double>> costHistory;
@@ -119,8 +121,12 @@ public class Simulator {
             initialLink();
         }
         //displayGraph(-1);
-        robustnessHistory = new HashMap<>();
-        robustnessHistory.put(0, Tools./*robustnessMultiRun*/robustnessParallel(connections, robustnessRuns));
+        robustnessShuffleHistory = new HashMap<>();
+        robustnessShuffleHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER));
+        robustnessForwardHistory = new HashMap<>();
+        robustnessForwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.FORWARD_ORDER));
+        robustnessBackwardHistory = new HashMap<>();
+        robustnessBackwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.BACKWARD_ORDER));
         contagionResults = new ArrayList<>();
         contagionResults.add(Tools.serviceAttackES(connections, contagionRuns, 1));
         costHistory = new HashMap<>();
@@ -191,7 +197,7 @@ public class Simulator {
         runUntil(maxTime);
         displayGraph(currentTime);
         if (!silentMode) {
-            System.out.println("R" + currentTime + " :: " + getRobustnessHistory().get(getRobustnessHistory().size() - 1));
+            System.out.println("R" + currentTime + " :: " + getRobustnessShuffleHistory().get(getRobustnessShuffleHistory().size() - 1));
         }
         if (displayCharts) {
             Charts charts = new Charts();
@@ -204,7 +210,9 @@ public class Simulator {
             charts.getCostFrame().setVisible(true);
             charts.extractCharts(currentPath + "/charts");
         }
-        System.out.println("Robustness: " + outputResults());
+        System.out.println("Robustness (shuffle): " + outputResults(robustnessShuffleHistory));
+        System.out.println("Robustness (forward): " + outputResults(robustnessForwardHistory));
+        System.out.println("Robustness (backward): " + outputResults(robustnessBackwardHistory));
     }
 
     public void runUntil(int desiredTime) {
@@ -249,6 +257,9 @@ public class Simulator {
             //cost.put("Richness", Tools.richness(Tools.getAliveServers(connections)));
             cost.put("Evenness", Tools.evenness(Tools.getAliveServers(connections)));
             //cost.put("Disparity", Tools.disparity(Tools.getAliveServers(connections)));
+            cost.put("Connectivity", totalLinks / (
+                    (double) Tools.getAliveServers(connections).size() *
+                            (double) Tools.getAliveApplications(connections).size()));
             //weighed links
             double linkWeight = 0;
             for (Server server : connections.keySet()) {
@@ -258,7 +269,9 @@ public class Simulator {
             }
             cost.put("WeighedLinks", linkWeight / totalLinks);
             costHistory.put(currentTime, cost);
-            robustnessHistory.put(currentTime, Tools./*robustnessMultiRun*/robustnessParallel(connections, robustnessRuns));
+            robustnessShuffleHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER));
+            robustnessForwardHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.FORWARD_ORDER));
+            robustnessBackwardHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.BACKWARD_ORDER));
             serverHistory.put(currentTime, Tools.getAliveServers(connections));
             applicationHistory.put(currentTime, Tools.getAliveApplications(connections));
         }
@@ -269,8 +282,16 @@ public class Simulator {
         runUntil(currentTime + desiredSteps);
     }
 
-    public Map<Integer, Map<Integer, List<Double>>> getRobustnessHistory() {
-        return robustnessHistory;
+    public Map<Integer, Map<Integer, List<Double>>> getRobustnessShuffleHistory() {
+        return robustnessShuffleHistory;
+    }
+
+    public Map<Integer, Map<Integer, List<Double>>> getRobustnessForwardHistory() {
+        return robustnessForwardHistory;
+    }
+
+    public Map<Integer, Map<Integer, List<Double>>> getRobustnessBackwardHistory() {
+        return robustnessBackwardHistory;
     }
 
     public Map<Integer, Map<String, Double>> getCostHistory() {
@@ -392,7 +413,7 @@ public class Simulator {
                     Set<Application> toDisconnect = connections.get(server).stream()
                             .filter(application -> Tools.getMatchingServices(application.getServices(),
                                     server.getServices()).size() == 0)
-                            .collect(Collectors.toCollection(() -> new LinkedHashSet<>()));
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
                     for (Application application : toDisconnect) {
                         connections.get(server).remove(application);
                         if (Tools.isApplicationSatisfied(application, connections)) {
@@ -521,7 +542,7 @@ public class Simulator {
                 " | Poisson/lambda/uniform=" + generatorPoisson + "/" + generatorLambda + "/" + generatorUniform;
     }
 
-    public Map<String, Double> outputResults() {
+    public Map<String, Double> outputResults(Map<Integer, Map<Integer, List<Double>>> robustnessHistory) {
         Map<String, Double> result = new LinkedHashMap<>();
         //I100,I10,I30,F100,F10,F30
         List<SummaryStatistics> robustnesses = new ArrayList<>(Arrays.asList(new SummaryStatistics(), new SummaryStatistics(), new SummaryStatistics(),

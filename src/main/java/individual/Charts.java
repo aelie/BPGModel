@@ -55,7 +55,7 @@ public class Charts {
         applicationFrame = new JFrame(title);
         applicationFrame.setContentPane(applicationChartPanel);
         //robustnessMultiRun
-        XYSeriesCollection finalRobustnessDataset = createFinalRobustnessDataset(Simulator.getInstance().getRobustnessHistory().get(Simulator.getInstance().getRobustnessHistory().size() - 1));
+        XYSeriesCollection finalRobustnessDataset = createFinalRobustnessDataset(Simulator.getInstance().getRobustnessShuffleHistory().get(Simulator.getInstance().getRobustnessShuffleHistory().size() - 1));
         JFreeChart finalRobustnessChart = createXYChartColoredSpecials(finalRobustnessDataset, "Robustness" + time);
         chartByTitle.put("Robustness" + time, finalRobustnessChart);
         final ChartPanel finalRobustnessChartPanel = new ChartPanel(finalRobustnessChart);
@@ -64,7 +64,9 @@ public class Charts {
         robustnessFrame.getContentPane().add(finalRobustnessChartPanel);
         //other metrics
         XYSeriesCollection costDataset = createMetricsHistoryDataset(Simulator.getInstance().getCostHistory(),
-                Simulator.getInstance().getRobustnessHistory());
+                Simulator.getInstance().getRobustnessShuffleHistory(),
+                Simulator.getInstance().getRobustnessForwardHistory(),
+                Simulator.getInstance().getRobustnessBackwardHistory());
         costFrame = new JFrame(title);
         costFrame.setLayout(new GridLayout(2, 5));
         for (Object object : costDataset.getSeries()) {
@@ -169,7 +171,9 @@ public class Charts {
     }
 
     public XYSeriesCollection createMetricsHistoryDataset(Map<Integer, Map<String, Double>> costHistory,
-                                                          Map<Integer, Map<Integer, List<Double>>> robustnessHistory) {
+                                                          Map<Integer, Map<Integer, List<Double>>> robustnessShuffleHistory,
+                                                          Map<Integer, Map<Integer, List<Double>>> robustnessForwardHistory,
+                                                          Map<Integer, Map<Integer, List<Double>>> robustnessBackwardHistory) {
         final XYSeriesCollection dataset = new XYSeriesCollection();
         if (costHistory == null) {
             throw new NullPointerException("Argument costHistory is null");
@@ -185,18 +189,20 @@ public class Charts {
             }
         }
         //robustnessMultiRun
-        series.put("Robustness", new XYSeries("Robustness"));
+        series.put("RobustnessShuffle", new XYSeries("RobustnessShuffle"));
+        series.put("RobustnessForward", new XYSeries("RobustnessForward"));
+        series.put("RobustnessBackward", new XYSeries("RobustnessBackward"));
         //series.put("Robustness10", new XYSeries("Robustness10"));
         //series.put("Robustness30", new XYSeries("Robustness30"));
         series.put("RobustnessValue10", new XYSeries("RobustnessValue10"));
         series.put("RobustnessValue30", new XYSeries("RobustnessValue30"));
-        for (Integer step : robustnessHistory.keySet()) {
+        for (Integer step : robustnessShuffleHistory.keySet()) {
             SummaryStatistics meanRobustness = new SummaryStatistics();
             double mean10 = 0;
             double mean30 = 0;
             double value10 = 0;
             double value30 = 0;
-            for (List<Double> extinctionSequence : robustnessHistory.get(step).values()) {
+            for (List<Double> extinctionSequence : robustnessShuffleHistory.get(step).values()) {
                 meanRobustness.addValue(extinctionSequence.get(0));
                 int index10 = (int) ((extinctionSequence.size() - 1) * 1.0 / 10.0);
                 int index30 = (int) ((extinctionSequence.size() - 1) * 3.0 / 10.0);
@@ -213,14 +219,28 @@ public class Charts {
                 value10 = extinctionSequence.get(index10) / extinctionSequence.get(1);
                 value30 = extinctionSequence.get(index30) / extinctionSequence.get(1);
             }
-            //meanRobustness /= (robustnessHistory.get(step).values().size() - 1);
-            mean10 /= (robustnessHistory.get(step).values().size() - 1);
-            mean30 /= (robustnessHistory.get(step).values().size() - 1);
-            series.get("Robustness").add((double) step, meanRobustness.getMean());
+            //meanRobustnessShuffle /= (robustnessShuffleHistory.get(step).values().size() - 1);
+            mean10 /= (robustnessShuffleHistory.get(step).values().size() - 1);
+            mean30 /= (robustnessShuffleHistory.get(step).values().size() - 1);
+            series.get("RobustnessShuffle").add((double) step, meanRobustness.getMean());
             //series.get("Robustness10").add((double)step, mean10);
             //series.get("Robustness30").add((double)step, mean30);
             series.get("RobustnessValue10").add((double) step, value10);
             series.get("RobustnessValue30").add((double) step, value30);
+        }
+        for (Integer step : robustnessForwardHistory.keySet()) {
+            SummaryStatistics meanRobustness = new SummaryStatistics();
+            for (List<Double> extinctionSequence : robustnessForwardHistory.get(step).values()) {
+                meanRobustness.addValue(extinctionSequence.get(0));
+            }
+            series.get("RobustnessForward").add((double) step, meanRobustness.getMean());
+        }
+        for (Integer step : robustnessBackwardHistory.keySet()) {
+            SummaryStatistics meanRobustness = new SummaryStatistics();
+            for (List<Double> extinctionSequence : robustnessBackwardHistory.get(step).values()) {
+                meanRobustness.addValue(extinctionSequence.get(0));
+            }
+            series.get("RobustnessBackward").add((double) step, meanRobustness.getMean());
         }
         series.values().forEach(dataset::addSeries);
 
