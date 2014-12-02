@@ -14,6 +14,8 @@ public class Tools {
     public static final int FORWARD_ORDER = 1;
     public static final int SHUFFLE_ORDER = 0;
     public static final int BACKWARD_ORDER = -1;
+    public static final int RANDOM_EXTINCTION = 0;
+    public static final int SERVICE_EXTINCTION = 1;
 
     public static Set<Service> extractServiceList(Set<Service> services, double serviceListRatio) {
         int size = (int) ((services.size() * serviceListRatio) + (Simulator.getInstance().getRandom().nextDouble() * ((1 - 2 * serviceListRatio) * services.size())));
@@ -48,7 +50,7 @@ public class Tools {
 
     public static double richness(Set<? extends Actor> actors) {
         SpeciesAndPopulation<Actor> sap = new SpeciesAndPopulation<>(new ArrayList<>(actors));
-        return (double)sap.getNumSpecies() / (double)actors.size();
+        return (double) sap.getNumSpecies() / (double) actors.size();
     }
 
     public static double evenness(Set<? extends Actor> actors) {
@@ -63,17 +65,17 @@ public class Tools {
 
     public static double disparity(Set<? extends Actor> actors) {
         double sum = 0;
-        for(Actor actor : actors) {
-            for(Actor otherActor : actors) {
-                if(actor != otherActor) {
+        for (Actor actor : actors) {
+            for (Actor otherActor : actors) {
+                if (actor != otherActor) {
                     sum += jaccard(actor, otherActor);
                 }
             }
         }
-        return sum / (double)(actors.size() * (actors.size() - 1));
+        return sum / (double) (actors.size() * (actors.size() - 1));
     }
 
-    public static List<Double> robustness(Map<Server, Set<Application>> connections, int direction) {
+    public static List<Double> robustnessRandom(Map<Server, Set<Application>> connections, int direction) {
         List<Double> extinctionSequence = new ArrayList<>();
         double robustnessMax = getAliveServers(connections).size() * getAliveApplications(connections).size();
         if (robustnessMax > 0) {
@@ -96,12 +98,54 @@ public class Tools {
         return extinctionSequence;
     }
 
-    public static Map<Integer, List<Double>> robustnessParallel(Map<Server, Set<Application>> connections, int runs, int direction) {
+    public static List<Double> robustnessService(Map<Server, Set<Application>> connections) {
+        List<Double> extinctionSequence = new ArrayList<>();
+        double robustnessMax = getAliveServers(connections).size() * getAliveApplications(connections).size();
+        if (robustnessMax > 0) {
+            Map<Server, Set<Application>> connectionsCopy = new LinkedHashMap<>(connections);
+            Set<Server> serversCopy = shuffleSet(getAliveServers(connections));
+            Set<Application> applicationsCopy = new LinkedHashSet<>(getAliveApplications(connections));
+            SummaryStatistics robustness = new SummaryStatistics();
+            while (!applicationsCopy.isEmpty()) {
+                Service infected = shuffleSet(Simulator.getInstance().getServicePool()).iterator().next();
+                for (Server server : shuffleSet(connections.keySet())) {
+                    if (server.getServices().contains(infected)) {
+                        robustness.addValue(applicationsCopy.size());
+                        extinctionSequence.add((double) applicationsCopy.size());
+                        applicationsCopy.removeAll(killServer(connectionsCopy, serversCopy, server));
+                    }
+                }
+            }
+            //first index: robustnessMultiRun
+            extinctionSequence.add(0, robustness.getSum() / robustnessMax);
+            //last index: 0.0
+            extinctionSequence.add(0.0);
+        } else {
+            extinctionSequence = new ArrayList<>(Arrays.asList(0.0, 0.0));
+        }
+        return extinctionSequence;
+    }
+
+    public static Map<Integer, List<Double>> robustnessParallel(Map<Server, Set<Application>> connections, int runs, int direction, int type) {
         Map<Integer, List<Double>> result = new HashMap<>();
         ExecutorService es = Executors.newCachedThreadPool();
         List<Callable<List<Double>>> callables = new ArrayList<>();
-        for (int i = 0; i < runs; i++) {
-            callables.add(() -> robustness(connections, direction));
+        switch (type) {
+            case RANDOM_EXTINCTION:
+                for (int i = 0; i < runs; i++) {
+                    callables.add(() -> robustnessRandom(connections, direction));
+                }
+                break;
+            case SERVICE_EXTINCTION:
+                for (int i = 0; i < runs; i++) {
+                    callables.add(() -> robustnessService(connections));
+                }
+                break;
+            default:
+                for (int i = 0; i < runs; i++) {
+                    callables.add(() -> robustnessRandom(connections, direction));
+                }
+                break;
         }
         try {
             int index = 0;
@@ -116,7 +160,7 @@ public class Tools {
         return result;
     }
 
-    public static Map<Integer, List<Double>> robustnessMultiRun(Map<Server, Set<Application>> connections, int runs) {
+    public static Map<Integer, List<Double>> robustnessSerial(Map<Server, Set<Application>> connections, int runs) {
         Map<Integer, List<Double>> result = new HashMap<>();
         double robustnessMax = getAliveServers(connections).size() * getAliveApplications(connections).size();
         for (int i = 0; i < runs; i++) {
@@ -126,9 +170,7 @@ public class Tools {
                 Set<Server> serversCopy = shuffleSet(getAliveServers(connections));
                 Set<Application> applicationsCopy = new LinkedHashSet<>(getAliveApplications(connections));
                 SummaryStatistics robustness = new SummaryStatistics();
-                Iterator<Server> serverIter = shuffleSet(connections.keySet()).iterator();
-                while (serverIter.hasNext()) {
-                    Server server = serverIter.next();
+                for (Server server : shuffleSet(connections.keySet())) {
                     robustness.addValue(applicationsCopy.size());
                     extinctionSequence.add((double) applicationsCopy.size());
                     applicationsCopy.removeAll(killServer(connectionsCopy, serversCopy, server));
@@ -146,12 +188,12 @@ public class Tools {
     }
 
     public static Map<Integer, List<Double>> serviceAttackES(Map<Server, Set<Application>> connections, int runs, int deadlyServicesAmount) {
-        Map<Integer, List<Double>> result = new HashMap<Integer, List<Double>>();
+        Map<Integer, List<Double>> result = new HashMap<>();
         double robustnessMax = getAliveServers(connections).size() * Simulator.getInstance().getApplicationPoolSize();
         for (int i = 0; i < runs; i++) {
             if (robustnessMax > 0) {
-                List<Double> extinctionSequence = new ArrayList<Double>();
-                Map<Server, Set<Application>> connectionsCopy = new LinkedHashMap<Server, Set<Application>>(connections);
+                List<Double> extinctionSequence = new ArrayList<>();
+                Map<Server, Set<Application>> connectionsCopy = new LinkedHashMap<>(connections);
                 Set<Server> serversCopy = shuffleSet(getAliveServers(connections));
                 Set<Application> applicationsCopy = new LinkedHashSet<>(getAliveApplications(connections));
                 Set<Service> deadlyServices = new LinkedHashSet<>(new ArrayList<>(shuffleSet(Simulator.getInstance().getServicePool())).subList(0, deadlyServicesAmount));
@@ -199,7 +241,7 @@ public class Tools {
     }
 
     public static <T extends Actor> Set<T> orderSet(Set<T> set, int direction) {
-        if(direction != SHUFFLE_ORDER) {
+        if (direction != SHUFFLE_ORDER) {
             List<T> list = new ArrayList<>(set);
             Collections.sort(list, (o1, o2) -> direction * (o1.getServices().size() - o2.getServices().size()));
             return new LinkedHashSet<>(list);
@@ -256,9 +298,11 @@ public class Tools {
             Set<Application> linkedApplications = connections.get(server);
             initialServers.remove(server);
             connections.remove(server);
-            for (Application application : linkedApplications) {
-                if (!isApplicationSatisfied(application, connections)) {
-                    disconnectedApplications.add(application);
+            if (linkedApplications != null) {
+                for (Application application : linkedApplications) {
+                    if (!isApplicationSatisfied(application, connections)) {
+                        disconnectedApplications.add(application);
+                    }
                 }
             }
         }

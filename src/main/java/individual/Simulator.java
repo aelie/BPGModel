@@ -24,6 +24,8 @@ public class Simulator {
     static boolean useManager = false;
     private static Simulator INSTANCE;
     double serverReproductionModifier = 1;
+    double serverReproductionProbability = 0.31;
+    double serverDeathProbability = 0.3;
     double applicationReproductionProbability = 0.31;
     double applicationDeathProbability = 0.3;
     double mutationProbability = 0.2;
@@ -47,11 +49,10 @@ public class Simulator {
     Map<Server, Set<Application>> connections;
     Set<Application> disconnectedApplications;
     int robustnessRuns = 50;
-    Map<Integer, Map<Integer, List<Double>>> robustnessShuffleHistory;
-    Map<Integer, Map<Integer, List<Double>>> robustnessForwardHistory;
-    Map<Integer, Map<Integer, List<Double>>> robustnessBackwardHistory;
-    int contagionRuns = 30;
-    List<Map<Integer, List<Double>>> contagionResults;
+    Map<Integer, Map<Integer, List<Double>>> robustnessRandomShuffleHistory;
+    Map<Integer, Map<Integer, List<Double>>> robustnessRandomForwardHistory;
+    Map<Integer, Map<Integer, List<Double>>> robustnessRandomBackwardHistory;
+    Map<Integer, Map<Integer, List<Double>>> robustnessServiceShuffleHistory;
     Map<Integer, Map<String, Double>> costHistory;
     Map<Integer, Set<Server>> serverHistory;
     Map<Integer, Set<Application>> applicationHistory;
@@ -92,7 +93,7 @@ public class Simulator {
         this.servicePoolSize = servicePoolSize;
         this.mutationProbability = mutationProbability;
         this.serverMaxConnections = serverMaxConnexion;
-        this.maxTime = maxTime;
+        Simulator.maxTime = maxTime;
         this.robustnessRuns = robustnessRuns;
     }
 
@@ -121,14 +122,14 @@ public class Simulator {
             initialLink();
         }
         //displayGraph(-1);
-        robustnessShuffleHistory = new HashMap<>();
-        robustnessShuffleHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER));
-        robustnessForwardHistory = new HashMap<>();
-        robustnessForwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.FORWARD_ORDER));
-        robustnessBackwardHistory = new HashMap<>();
-        robustnessBackwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.BACKWARD_ORDER));
-        contagionResults = new ArrayList<>();
-        contagionResults.add(Tools.serviceAttackES(connections, contagionRuns, 1));
+        robustnessRandomShuffleHistory = new HashMap<>();
+        robustnessRandomShuffleHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.RANDOM_EXTINCTION));
+        robustnessRandomForwardHistory = new HashMap<>();
+        robustnessRandomForwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.FORWARD_ORDER, Tools.RANDOM_EXTINCTION));
+        robustnessRandomBackwardHistory = new HashMap<>();
+        robustnessRandomBackwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.BACKWARD_ORDER, Tools.RANDOM_EXTINCTION));
+        robustnessServiceShuffleHistory = new HashMap<>();
+        robustnessServiceShuffleHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.SERVICE_EXTINCTION));
         costHistory = new HashMap<>();
         serverHistory = new HashMap<>();
         applicationHistory = new HashMap<>();
@@ -195,10 +196,12 @@ public class Simulator {
 
     public void start(boolean displayCharts) {
         runUntil(maxTime);
-        displayGraph(currentTime);
+        //displayGraph(currentTime);
         if (!silentMode) {
-            System.out.println("R" + currentTime + " :: " + getRobustnessShuffleHistory().get(getRobustnessShuffleHistory().size() - 1));
+            System.out.println("R" + currentTime + " :: " + getRobustnessRandomShuffleHistory().get(getRobustnessRandomShuffleHistory().size() - 1));
         }
+        System.out.println("Writing charts to file.");
+        String resultFolder = currentPath + System.getProperty("file.separator") + "results" + System.getProperty("file.separator") + System.currentTimeMillis();
         if (displayCharts) {
             Charts charts = new Charts();
             charts.init(currentTime);
@@ -208,11 +211,14 @@ public class Simulator {
             charts.getCostFrame().pack();
             RefineryUtilities.centerFrameOnScreen(charts.getCostFrame());
             charts.getCostFrame().setVisible(true);
-            charts.extractCharts(currentPath + "/charts");
+            charts.extractCharts(resultFolder);
         }
-        System.out.println("Robustness (shuffle): " + outputResults(robustnessShuffleHistory));
-        System.out.println("Robustness (forward): " + outputResults(robustnessForwardHistory));
-        System.out.println("Robustness (backward): " + outputResults(robustnessBackwardHistory));
+        System.out.println("Writing robustnesses to file.");
+        writeRobustnessToFile(robustnessRandomShuffleHistory, resultFolder + System.getProperty("file.separator") + "random_shuffle.csv");
+        writeRobustnessToFile(robustnessRandomForwardHistory, resultFolder + System.getProperty("file.separator") + "random_forward.csv");
+        writeRobustnessToFile(robustnessRandomBackwardHistory, resultFolder + System.getProperty("file.separator") + "random_backward.csv");
+        writeRobustnessToFile(robustnessServiceShuffleHistory, resultFolder + System.getProperty("file.separator") + "service_shuffle.csv");
+        System.out.println("All done!");
     }
 
     public void runUntil(int desiredTime) {
@@ -221,7 +227,8 @@ public class Simulator {
             if (manager != null) {
                 manager.updateSliderPosition(currentTime);
             }
-            evolveServers();
+            //evolveServersNeutral();
+            evolveServersEcological();
             evolveServersWorstToBestService();
             evolveApplications();
             relink();
@@ -269,29 +276,33 @@ public class Simulator {
             }
             cost.put("WeighedLinks", linkWeight / totalLinks);
             costHistory.put(currentTime, cost);
-            robustnessShuffleHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER));
-            robustnessForwardHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.FORWARD_ORDER));
-            robustnessBackwardHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.BACKWARD_ORDER));
+            robustnessRandomShuffleHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.RANDOM_EXTINCTION));
+            robustnessRandomForwardHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.FORWARD_ORDER, Tools.RANDOM_EXTINCTION));
+            robustnessRandomBackwardHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.BACKWARD_ORDER, Tools.RANDOM_EXTINCTION));
+            robustnessServiceShuffleHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.SERVICE_EXTINCTION));
             serverHistory.put(currentTime, Tools.getAliveServers(connections));
             applicationHistory.put(currentTime, Tools.getAliveApplications(connections));
         }
-        contagionResults.add(Tools.serviceAttackES(connections, contagionRuns, 1));
     }
 
     public void runSteps(int desiredSteps) {
         runUntil(currentTime + desiredSteps);
     }
 
-    public Map<Integer, Map<Integer, List<Double>>> getRobustnessShuffleHistory() {
-        return robustnessShuffleHistory;
+    public Map<Integer, Map<Integer, List<Double>>> getRobustnessRandomShuffleHistory() {
+        return robustnessRandomShuffleHistory;
     }
 
-    public Map<Integer, Map<Integer, List<Double>>> getRobustnessForwardHistory() {
-        return robustnessForwardHistory;
+    public Map<Integer, Map<Integer, List<Double>>> getRobustnessRandomForwardHistory() {
+        return robustnessRandomForwardHistory;
     }
 
-    public Map<Integer, Map<Integer, List<Double>>> getRobustnessBackwardHistory() {
-        return robustnessBackwardHistory;
+    public Map<Integer, Map<Integer, List<Double>>> getRobustnessRandomBackwardHistory() {
+        return robustnessRandomBackwardHistory;
+    }
+
+    public Map<Integer, Map<Integer, List<Double>>> getRobustnessServiceShuffleHistory() {
+        return robustnessServiceShuffleHistory;
     }
 
     public Map<Integer, Map<String, Double>> getCostHistory() {
@@ -300,10 +311,6 @@ public class Simulator {
 
     public Map<Integer, Set<Server>> getServerHistory() {
         return serverHistory;
-    }
-
-    public List<Map<Integer, List<Double>>> getContagionResults() {
-        return contagionResults;
     }
 
     public void displayGraph(int time) {
@@ -319,7 +326,27 @@ public class Simulator {
         }
     }
 
-    public void evolveServers() {
+    public void evolveServersNeutral() {
+        Set<Server> serversToBeCloned = new LinkedHashSet<>();
+        Set<Server> serversToBeRemoved = new LinkedHashSet<>();
+        for (Server server : Tools.getAliveServers(connections)) {
+            if (getRandom().nextDouble() < serverReproductionProbability) {
+                serversToBeCloned.add(server);
+            }
+            if (getRandom().nextDouble() < serverDeathProbability) {
+                serversToBeRemoved.add(server);
+            }
+        }
+        for (Server server : serversToBeCloned) {
+            serverCounter++;
+            Server clone = new Server("SC" + serverCounter, server.getServices(), server.getMaxConnectionNumber());
+            clone.mutate();
+            connections.put(clone, new LinkedHashSet<>());
+        }
+        disconnectedApplications.addAll(Tools.killServers(connections, Tools.getAliveServers(connections), serversToBeRemoved));
+    }
+
+    public void evolveServersEcological() {
         Set<Server> serversToBeCloned = new LinkedHashSet<>();
         Set<Server> serversToBeRemoved = new LinkedHashSet<>();
         for (Server server : Tools.getAliveServers(connections)) {
@@ -407,8 +434,6 @@ public class Simulator {
                 Set<Service> toMutate = new LinkedHashSet<>(orderedSatisfiedServices.subList(0, 1));
                 for (Service service : toMutate) {
                     boolean serviceHarmless = true;
-                    //System.out.println(service);
-                    //System.out.println(server + ":" + server.getServices());
                     server.getServices().remove(service);
                     Set<Application> toDisconnect = connections.get(server).stream()
                             .filter(application -> Tools.getMatchingServices(application.getServices(),
@@ -426,13 +451,9 @@ public class Simulator {
                     }
                     if (serviceHarmless && orderedRequiredNotAvailable.size() > 0) {
                         server.getServices().add(orderedRequiredNotAvailable.get(0));
-                        //System.out.println(service+"->"+orderedRequiredNotAvailable.get(0));
                     } else {
                         server.getServices().add(service);
-                        //System.out.println("--");
                     }
-                    //System.out.println(server + ":" + server.getServices());
-                    //System.out.println();
                 }
             }
         }
@@ -575,6 +596,24 @@ public class Simulator {
         result.put("F100", robustnesses.get(3).getMean());
         result.put("D100", robustnesses.get(3).getMean() - robustnesses.get(0).getMean());
         return result;
+    }
+
+    public void writeRobustnessToFile(Map<Integer, Map<Integer, List<Double>>> robustnessHistory, String fileName) {
+        try {
+            PrintWriter pw_R = new PrintWriter(fileName, "UTF-8");
+            pw_R.println("Step,MeanValue");
+            for (Integer step : robustnessHistory.keySet()) {
+                SummaryStatistics meanRobustness = new SummaryStatistics();
+                for (List<Double> extinctionSequence : robustnessHistory.get(step).values()) {
+                    meanRobustness.addValue(extinctionSequence.get(0));
+                }
+                pw_R.println(step + "," + meanRobustness.getMean());
+                pw_R.flush();
+            }
+            pw_R.close();
+        } catch (FileNotFoundException | UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
     }
 
     public Set<Service> getServicePool() {
