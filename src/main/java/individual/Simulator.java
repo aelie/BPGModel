@@ -23,20 +23,20 @@ public class Simulator {
     static int maxTime = 500;
     static boolean useManager = false;
     private static Simulator INSTANCE;
-    double serverReproductionModifier = 1;
-    double serverReproductionProbability = 0.31;
-    double serverDeathProbability = 0.3;
-    double applicationReproductionProbability = 0.31;
-    double applicationDeathProbability = 0.3;
-    double mutationProbability = 0.2;
-    int applicationPoolSize = 300;
-    int serverPoolSize = 100;
-    int serverMaxConnections = 18;
-    int servicePoolSize = 50;
-    double serviceListRatio = 0.2;
-    double generatorLambda = 0.25;
-    double generatorUniform = 0.005;
-    int generatorPoisson = 6;
+    static double serverReproductionModifier = 1;
+    static double serverReproductionProbability = 0.31;
+    static double serverDeathProbability = 0.3;
+    static double applicationReproductionProbability = 0.31;
+    static double applicationDeathProbability = 0.3;
+    static double mutationProbability = 0.2;
+    static int applicationPoolSize = 300;
+    static int serverPoolSize = 100;
+    static int serverMaxConnections = 18;
+    static int servicePoolSize = 50;
+    static double serviceListRatio = 0.2;
+    static double generatorLambda = 0.25;
+    static double generatorUniform = 0.005;
+    static int generatorPoisson = 6;
     Set<Server> serverPool;
     Set<Application> applicationPool;
     Set<Service> servicePool;
@@ -48,8 +48,9 @@ public class Simulator {
     Random random;
     Map<Server, Set<Application>> connections;
     Set<Application> disconnectedApplications;
-    int robustnessRuns = 50;
-    Map<Integer, Map<Integer, List<Double>>> robustnessRandomShuffleHistory;
+    static int robustnessRuns = 50;
+    static int simulationRuns = 50;
+    static Map<Integer, Map<Integer, List<Double>>> robustnessRandomShuffleHistory;
     Map<Integer, Map<Integer, List<Double>>> robustnessRandomForwardHistory;
     Map<Integer, Map<Integer, List<Double>>> robustnessRandomBackwardHistory;
     Map<Integer, Map<Integer, List<Double>>> robustnessServiceShuffleHistory;
@@ -59,6 +60,17 @@ public class Simulator {
     SimulationManager manager;
     DisplayGraph dg;
     boolean silentMode = false;
+
+    static boolean evolveServersNeutral = false;
+    static boolean evolveServersEcology = false;
+    static boolean evolveApplications = false;
+    static boolean evolveServersWorstToBest = false;
+    static int applicationMinimumSize = 1;
+
+    static boolean testRobustness = false;
+    static boolean testSimulations = false;
+
+    static String resultFolder;
 
     private Simulator() {
     }
@@ -71,17 +83,92 @@ public class Simulator {
     }
 
     public static void main(String[] args) {
-        if (args.length > 0) {
-            currentPath = args[0];
+        for(int i = 0; i < args.length; i++) {
+            if (args[i].equalsIgnoreCase("-path") && i < args.length - 1) {
+                currentPath = args[i + 1];
+            }
+            if (args[i].equalsIgnoreCase("-minsize") && i < args.length - 1) {
+                applicationMinimumSize = Integer.parseInt(args[i + 1]);
+            }
+            if (args[i].equalsIgnoreCase("-SN")) {
+                evolveServersNeutral = true;
+            }
+            if (args[i].equalsIgnoreCase("-SE")) {
+                evolveServersEcology = true;
+            }
+            if (args[i].equalsIgnoreCase("-A")) {
+                evolveApplications = true;
+            }
+            if (args[i].equalsIgnoreCase("-SWTB")) {
+                evolveServersWorstToBest = true;
+            }
         }
-        if (args.length > 1) {
-            maxTime = Integer.parseInt(args[1]);
+        if(!evolveServersNeutral && !evolveServersEcology && !evolveApplications && !evolveServersWorstToBest) {
+            System.err.println("Please choose a strategy between SN, SE, A and SWTB (Smart&Simple is -SN -SWTB -A).");
+        } else {
+            System.out.println("Using evolution strategies:");
+            if(evolveServersNeutral) System.out.println("- Servers Neutral");
+            if(evolveServersEcology) System.out.println("- Servers Ecology");
+            if(evolveServersWorstToBest) System.out.println("- Servers Worst To Best");
+            if(evolveApplications) System.out.println("- Applications");
         }
-        System.out.println(currentPath);
+        System.out.println("Path: " + currentPath);
+        System.out.println("MinSize: " + applicationMinimumSize);
         Simulator simulator = Simulator.getInstance();
-        simulator.warmup(1, true, false);
-        if (!useManager) {
-            simulator.start(true);
+        if (testSimulations) {
+            simulator.testSimulationRuns(1000);
+        } else {
+            if (testRobustness) {
+                simulator.warmup(1, true, false);
+                simulator.testRobustnessRuns(1000);
+            } else {
+                if (!useManager) {
+                    if (simulationRuns > 1) {
+                        List<SummaryStatistics> meanRobustnessList = new ArrayList<>();
+                        for (int i = 0; i < maxTime; i++) {
+                            meanRobustnessList.add(new SummaryStatistics());
+                        }
+                        for (int simulationRun = 0; simulationRun < simulationRuns; simulationRun++) {
+                            simulator.warmup(1, true, false);
+                            simulator.start(false);
+                            for (int step = 0; step < maxTime; step++) {
+                                for (int robustnessRun = 0; robustnessRun < robustnessRuns; robustnessRun++) {
+                                    meanRobustnessList.get(step).addValue(robustnessRandomShuffleHistory.get(step).get(robustnessRun).get(0));
+                                }
+                            }
+                        }
+                        writeCompiledRobustnessToFile(meanRobustnessList, resultFolder + System.getProperty("file.separator") + "compiledRobustness.csv");
+                    } else {
+                        simulator.warmup(1, true, false);
+                        simulator.start(true);
+                    }
+                }
+            }
+        }
+    }
+
+    public static void readProperties() {
+        Properties prop = new Properties();
+        try {
+            prop.load(new FileInputStream("config.properties"));
+            maxTime = Integer.parseInt(prop.getProperty("maxTime", "500"));
+            serverReproductionModifier = Integer.parseInt(prop.getProperty("serverReproductionModifier", "1"));
+            serverReproductionProbability = Double.parseDouble(prop.getProperty("serverReproductionProbability", "0.31"));
+            serverDeathProbability = Double.parseDouble(prop.getProperty("serverDeathProbability", "0.3"));
+            applicationReproductionProbability = Double.parseDouble(prop.getProperty("applicationReproductionProbability", "0.31"));
+            applicationDeathProbability = Double.parseDouble(prop.getProperty("applicationDeathProbability", "0.3"));
+            mutationProbability = Double.parseDouble(prop.getProperty("mutationProbability", "0.2"));
+            applicationPoolSize = Integer.parseInt(prop.getProperty("applicationPoolSize", "300"));
+            serverPoolSize = Integer.parseInt(prop.getProperty("serverPoolSize", "100"));
+            serverMaxConnections = Integer.parseInt(prop.getProperty("serverMaxConnections", "18"));
+            servicePoolSize = Integer.parseInt(prop.getProperty("servicePoolSize", "50"));
+            serviceListRatio = Double.parseDouble(prop.getProperty("serviceListRatio", "0.2"));
+            generatorLambda = Double.parseDouble(prop.getProperty("generatorLambda", "0.25"));
+            generatorUniform = Double.parseDouble(prop.getProperty("generatorUniform", "0.005"));
+            generatorPoisson = Integer.parseInt(prop.getProperty("generatorPoisson", "6"));
+            robustnessRuns = Integer.parseInt(prop.getProperty("robustnessRuns", "50"));
+        } catch (IOException ex) {
+            System.err.println("config.properties file not found, using default values");
         }
     }
 
@@ -99,8 +186,13 @@ public class Simulator {
 
     public void warmup(int seed, boolean useFFBPG, boolean silentMode) {
         if (currentPath == null) {
-            currentPath = ClassLoader.getSystemResource("").getPath();
+            try {
+                currentPath = ClassLoader.getSystemResource("").getPath();
+            } catch (NullPointerException npe) {
+                currentPath = System.getProperty("user.dir");
+            }
         }
+        readProperties();
         currentTime = 0;
         serverCounter = 0;
         applicationCounter = 0;
@@ -142,10 +234,10 @@ public class Simulator {
         applicationPool = new LinkedHashSet<>();
         connections = new LinkedHashMap<>();
         if (fromFFBPG) {
-            IntegerGenerator sizes_generator = Facade.getPoissonIntegerGenerator(generatorPoisson);
+            IntegerGenerator sizes_generator = Facade.getNegExpIntegerGenerator(15);//Facade.getPoissonIntegerGenerator(generatorPoisson);
             IntegerSetGenerator srv_generator = Facade.getNegExpIntegerSetGenerator(generatorLambda, generatorUniform);
             BPGraph ffbpg = Facade.createRandomBPGraph(applicationPoolSize, serverPoolSize, servicePoolSize,
-                    sizes_generator, srv_generator, serverPoolSize, serverMaxConnections);
+                    sizes_generator, srv_generator, serverPoolSize, serverMaxConnections, applicationMinimumSize);
             for (Integer serviceId : ffbpg.getAllUsedServices().toArray()) {
                 servicePool.add(new Service("s" + serviceId, serviceId, mutationProbability));
             }
@@ -201,7 +293,8 @@ public class Simulator {
             System.out.println("R" + currentTime + " :: " + getRobustnessRandomShuffleHistory().get(getRobustnessRandomShuffleHistory().size() - 1));
         }
         System.out.println("Writing charts to file.");
-        String resultFolder = currentPath + System.getProperty("file.separator") + "results" + System.getProperty("file.separator") + System.currentTimeMillis();
+        resultFolder = currentPath + System.getProperty("file.separator") + "results" + System.getProperty("file.separator") + System.currentTimeMillis();
+        new File(resultFolder).mkdirs();
         if (displayCharts) {
             Charts charts = new Charts();
             charts.init(currentTime);
@@ -227,10 +320,18 @@ public class Simulator {
             if (manager != null) {
                 manager.updateSliderPosition(currentTime);
             }
-            //evolveServersNeutral();
-            evolveServersEcological();
-            evolveServersWorstToBestService();
-            evolveApplications();
+            if(evolveServersNeutral) {
+                evolveServersNeutral();
+            }
+            if(evolveServersEcology) {
+                evolveServersEcological();
+            }
+            if(evolveApplications) {
+                evolveApplications();
+            }
+            if(evolveServersWorstToBest) {
+                evolveServersWorstToBestService();
+            }
             relink();
             currentTime++;
             Map<String, Double> cost = new HashMap<>();
@@ -370,7 +471,7 @@ public class Simulator {
 
     public void evolveApplications() {
         List<Application> applications = new ArrayList<>(Tools.getAliveApplications(connections));
-        if (getRandom().nextDouble() < applicationReproductionProbability) {
+        if (getRandom().nextDouble() < applicationReproductionProbability && applications.size() > 0) {
             Application father = applications.get((int) (getRandom().nextDouble() * applications.size()));
             Application mother = applications.get((int) (getRandom().nextDouble() * applications.size()));
             Set<Service> babyServices = new LinkedHashSet<>(father.getServices());
@@ -386,7 +487,7 @@ public class Simulator {
             disconnectedApplications.add(baby);
             System.out.println("[" + currentTime + "]++ " + baby + "(" + baby.getServices().size() + ")");
         }
-        if (getRandom().nextDouble() < applicationDeathProbability) {
+        if (getRandom().nextDouble() < applicationDeathProbability && applications.size() > 0) {
             Application stoneColdDead = applications.get((int) (getRandom().nextDouble() * applications.size()));
             connections.keySet().stream()
                     .filter(server -> connections.get(server).remove(stoneColdDead))
@@ -608,6 +709,77 @@ public class Simulator {
                     meanRobustness.addValue(extinctionSequence.get(0));
                 }
                 pw_R.println(step + "," + meanRobustness.getMean());
+                pw_R.flush();
+            }
+            pw_R.close();
+        } catch (FileNotFoundException | UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void writeCompiledRobustnessToFile(List<SummaryStatistics> meanRobustnessList, String fileName) {
+        try {
+            PrintWriter pw_R = new PrintWriter(fileName, "UTF-8");
+            pw_R.println("Step,MeanValue");
+            for (int i = 0; i < meanRobustnessList.size(); i++) {
+                pw_R.println(i + "," + meanRobustnessList.get(i).getMean());
+                pw_R.flush();
+            }
+            pw_R.close();
+        } catch (FileNotFoundException | UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void testRobustnessRuns(int maxRobustnessRuns) {
+        try {
+            PrintWriter pw_R = new PrintWriter("robustnessRunsTest.csv", "UTF-8");
+            pw_R.println("RobustnessRuns,Value,Value10%");
+            for (int i = 1; i < maxRobustnessRuns + 1; i++) {
+                System.out.println(i);
+                SummaryStatistics robustness = new SummaryStatistics();
+                SummaryStatistics robustness10 = new SummaryStatistics();
+                for (List<Double> extinction : Tools.robustnessParallel(connections, i, Tools.SHUFFLE_ORDER, Tools.RANDOM_EXTINCTION).values()) {
+                    robustness.addValue(extinction.get(0));
+                    int partialIndex = (int) ((extinction.size() - 1) * 10 / 100.0);
+                    double value = 0;
+                    for (int j = 1; j < partialIndex; j++) {
+                        value += extinction.get(j);
+                    }
+                    robustness10.addValue(value / (partialIndex * extinction.get(1)));
+                }
+                pw_R.println(i + "," + robustness.getMean() + "," + robustness10.getMean());
+                pw_R.flush();
+            }
+            pw_R.close();
+        } catch (FileNotFoundException | UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void testSimulationRuns(int maxSimulationRuns) {
+        try {
+            PrintWriter pw_R = new PrintWriter("simulationRunsTest.csv", "UTF-8");
+            pw_R.println("SimulationRuns,Value");
+            int counter = 0;
+            for (int i = 0; i < maxSimulationRuns; i++) {
+                System.out.println("Simulation run #" + i);
+                warmup(i, true, true);
+                start(false);
+                SummaryStatistics initialRobustness = new SummaryStatistics();
+                for (List<Double> initialExtinction : robustnessRandomShuffleHistory.get(0).values()) {
+                    initialRobustness.addValue(initialExtinction.get(0));
+                }
+                SummaryStatistics meanRobustness = new SummaryStatistics();
+                for (int j = robustnessRandomShuffleHistory.size() - 1; j > robustnessRandomShuffleHistory.size() - 50; j--) {
+                    Map<Integer, List<Double>> robustnesses = robustnessRandomShuffleHistory.get(j);
+                    SummaryStatistics robustness = new SummaryStatistics();
+                    for (List<Double> extinction : robustnesses.values()) {
+                        robustness.addValue(extinction.get(0));
+                    }
+                    meanRobustness.addValue(robustness.getMean() - initialRobustness.getMean());
+                }
+                pw_R.println(counter++ + "," + meanRobustness.getMean());
                 pw_R.flush();
             }
             pw_R.close();

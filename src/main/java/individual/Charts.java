@@ -33,6 +33,7 @@ public class Charts {
     JFrame applicationFrame;
     JFrame robustnessFrame;
     JFrame costFrame;
+    JFrame testFrame;
 
     public Charts() {
     }
@@ -217,12 +218,16 @@ public class Charts {
     private Map<String, XYSeries> addPartialRobustnessSerie(Map<String, XYSeries> series, String name, Map<Integer, Map<Integer, List<Double>>> robustnessHistory, int percent) {
         series.put(name, new XYSeries(name));
         for (Integer step : robustnessHistory.keySet()) {
-            double partialValue = 0;
+            SummaryStatistics meanPartialRobustness = new SummaryStatistics();
             for (List<Double> extinctionSequence : robustnessHistory.get(step).values()) {
+                double partialValue = 0;
                 int partialIndex = (int) ((extinctionSequence.size() - 1) * percent / 100.0);
-                partialValue = extinctionSequence.get(partialIndex) / extinctionSequence.get(1);
+                for (int i = 1; i < partialIndex; i++) {
+                    partialValue += extinctionSequence.get(i);
+                }
+                meanPartialRobustness.addValue(partialValue / (partialIndex * extinctionSequence.get(1)));
             }
-            series.get(name).add((double) step, partialValue);
+            series.get(name).add((double) step, meanPartialRobustness.getMean());
         }
         return series;
     }
@@ -331,20 +336,16 @@ public class Charts {
     }
 
     public void extractCharts(String folder) {
-        File file = new File(folder);
-        JFreeChart clone = null;
-        if (file.mkdirs()) {
-            for (String title : chartByTitle.keySet()) {
-                try {
-                    file = new File(folder + System.getProperty("file.separator") + title + ".png");
-                    clone = (JFreeChart) (chartByTitle.get(title).clone());
-                    ChartUtilities.saveChartAsPNG(file, clone, 1500, 800);
-                } catch (IOException | CloneNotSupportedException e) {
-                    e.printStackTrace();
-                }
+        File file;
+        JFreeChart clone;
+        for (String title : chartByTitle.keySet()) {
+            try {
+                file = new File(folder + System.getProperty("file.separator") + title + ".png");
+                clone = (JFreeChart) (chartByTitle.get(title).clone());
+                ChartUtilities.saveChartAsPNG(file, clone, 1500, 800);
+            } catch (IOException | CloneNotSupportedException e) {
+                e.printStackTrace();
             }
-        } else {
-            System.err.println("Unable to create folder");
         }
         try {
             PrintWriter pw_R = new PrintWriter(folder + System.getProperty("file.separator") + "parameters.txt", "UTF-8");

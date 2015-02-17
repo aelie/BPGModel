@@ -5,6 +5,7 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 /**
  * Created by aelie on 18/09/14.
@@ -19,8 +20,8 @@ public class Tools {
 
     public static Set<Service> extractServiceList(Set<Service> services, double serviceListRatio) {
         int size = (int) ((services.size() * serviceListRatio) + (Simulator.getInstance().getRandom().nextDouble() * ((1 - 2 * serviceListRatio) * services.size())));
-        Set<Service> result = new HashSet<Service>();
-        Set<Service> servicePool = new HashSet<Service>(services);
+        Set<Service> result = new HashSet<>();
+        Set<Service> servicePool = new HashSet<>(services);
         while (result.size() < size) {
             Service[] template = new Service[servicePool.size()];
             int randomIndex = (int) (Simulator.getInstance().getRandom().nextDouble() * servicePool.size());
@@ -237,7 +238,7 @@ public class Tools {
     public static <T> Set<T> shuffleSet(Set<T> set) {
         List<T> setAsList = new ArrayList<>(set);
         Collections.shuffle(setAsList, Simulator.getInstance().getRandom());
-        return new LinkedHashSet<T>(setAsList);
+        return new LinkedHashSet<>(setAsList);
     }
 
     public static <T extends Actor> Set<T> orderSet(Set<T> set, int direction) {
@@ -251,13 +252,9 @@ public class Tools {
     }
 
     public static Set<Server> getProvidingServers(Application application, Map<Server, Set<Application>> connections) {
-        Set<Server> providingServers = new LinkedHashSet<>();
-        for (Server server : connections.keySet()) {
-            if (connections.get(server).contains(application)) {
-                providingServers.add(server);
-            }
-        }
-        return providingServers;
+        return connections.keySet().stream()
+                .filter(server -> connections.get(server).contains(application))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     public static Set<Server> getSecondDegreeServers(Server server, Map<Server, Set<Application>> connections) {
@@ -274,21 +271,17 @@ public class Tools {
 
     public static Set<Service> getUnsatisfiedServices(Application application, Map<Server, Set<Application>> connections) {
         Set<Service> unsatisfiedServices = new LinkedHashSet<>(application.getServices());
-        for (Server server : connections.keySet()) {
-            if (connections.get(server).contains(application)) {
-                unsatisfiedServices.removeAll(getMatchingServices(server.getServices(), application.getServices()));
-            }
-        }
+        connections.keySet().stream()
+                .filter(server -> connections.get(server).contains(application))
+                .forEach(server -> unsatisfiedServices.removeAll(getMatchingServices(server.getServices(), application.getServices())));
         return unsatisfiedServices;
     }
 
     public static boolean isApplicationSatisfied(Application application, Map<Server, Set<Application>> connections) {
         Set<Service> services = new LinkedHashSet<>(application.getServices());
-        for (Server server : connections.keySet()) {
-            if (connections.get(server).contains(application)) {
-                services.removeAll(server.getServices());
-            }
-        }
+        connections.keySet().stream()
+                .filter(server -> connections.get(server).contains(application))
+                .forEach(server -> services.removeAll(server.getServices()));
         return services.isEmpty();
     }
 
