@@ -2,6 +2,7 @@
 target/**
 charts/**
 classes/**
+results/**
 META-INF/**
 BPGModel.iml
 pom.xml
