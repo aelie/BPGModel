@@ -66,6 +66,8 @@ public class Simulator {
     static boolean evolveApplications = false;
     static boolean evolveServersWorstToBest = false;
     static int applicationMinimumSize = 1;
+    static int poisson = -1;
+    static int negexp = -1;
 
     static boolean testRobustness = false;
     static boolean testSimulations = false;
@@ -83,7 +85,7 @@ public class Simulator {
     }
 
     public static void main(String[] args) {
-        for(int i = 0; i < args.length; i++) {
+        for (int i = 0; i < args.length; i++) {
             if (args[i].equalsIgnoreCase("-path") && i < args.length - 1) {
                 currentPath = args[i + 1];
             }
@@ -102,15 +104,38 @@ public class Simulator {
             if (args[i].equalsIgnoreCase("-SWTB")) {
                 evolveServersWorstToBest = true;
             }
+            if (args[i].equalsIgnoreCase("-BL")) {
+                evolveServersNeutral = false;
+                evolveServersEcology = true;
+                evolveServersWorstToBest = false;
+                evolveApplications = true;
+            }
+            if (args[i].equalsIgnoreCase("-SS")) {
+                evolveServersNeutral = false;
+                evolveServersEcology = true;
+                evolveServersWorstToBest = true;
+                evolveApplications = true;
+            }
+            if (args[i].equalsIgnoreCase("-negexp") && i < args.length - 1) {
+                negexp = Integer.parseInt(args[i + 1]);
+            }
+            if (args[i].equalsIgnoreCase("-poisson") && i < args.length - 1) {
+                poisson = Integer.parseInt(args[i + 1]);
+            }
         }
-        if(!evolveServersNeutral && !evolveServersEcology && !evolveApplications && !evolveServersWorstToBest) {
-            System.err.println("Please choose a strategy between SN, SE, A and SWTB (Smart&Simple is -SN -SWTB -A).");
+        if (!evolveServersNeutral && !evolveServersEcology && !evolveApplications && !evolveServersWorstToBest) {
+            System.err.println("Please choose a strategy between -SN, -SE, -A and -SWTB (Smart&Simple is -SE -SWTB -A)");
+            return;
         } else {
             System.out.println("Using evolution strategies:");
-            if(evolveServersNeutral) System.out.println("- Servers Neutral");
-            if(evolveServersEcology) System.out.println("- Servers Ecology");
-            if(evolveServersWorstToBest) System.out.println("- Servers Worst To Best");
-            if(evolveApplications) System.out.println("- Applications");
+            if (evolveServersNeutral) System.out.println("- Servers Neutral");
+            if (evolveServersEcology) System.out.println("- Servers Ecology");
+            if (evolveServersWorstToBest) System.out.println("- Servers Worst To Best");
+            if (evolveApplications) System.out.println("- Applications");
+        }
+        if (negexp < 0 && poisson < 0) {
+            System.err.println("Please choose a distribution and parameter between -negexp param and -poisson param");
+            return;
         }
         System.out.println("Path: " + currentPath);
         System.out.println("MinSize: " + applicationMinimumSize);
@@ -122,6 +147,7 @@ public class Simulator {
                 simulator.warmup(1, true, false);
                 simulator.testRobustnessRuns(1000);
             } else {
+                // MAIN SIMULATION STARTS HERE
                 if (!useManager) {
                     if (simulationRuns > 1) {
                         List<SummaryStatistics> meanRobustnessList = new ArrayList<>();
@@ -137,7 +163,15 @@ public class Simulator {
                                 }
                             }
                         }
-                        writeCompiledRobustnessToFile(meanRobustnessList, resultFolder + System.getProperty("file.separator") + "compiledRobustness.csv");
+                        writeCompiledRobustnessToFile(meanRobustnessList, currentPath + System.getProperty("file.separator")
+                                + "compiledRobustness"
+                                + (evolveServersNeutral ? "-SN" : "")
+                                + (evolveServersEcology ? "-SE" : "")
+                                + (evolveServersWorstToBest ? "-SWTB" : "")
+                                + (evolveApplications ? "-A" : "")
+                                + (poisson >= 0 ? "-poisson-" + poisson : "-negexp-" + negexp)
+                                + "-" + applicationMinimumSize
+                                + ".csv");
                     } else {
                         simulator.warmup(1, true, false);
                         simulator.start(true);
@@ -234,10 +268,22 @@ public class Simulator {
         applicationPool = new LinkedHashSet<>();
         connections = new LinkedHashMap<>();
         if (fromFFBPG) {
-            IntegerGenerator sizes_generator = Facade.getNegExpIntegerGenerator(15);//Facade.getPoissonIntegerGenerator(generatorPoisson);
+            // RECUPERATION DU MODELE DEPUIS L'API DE FRANCK
+            //IntegerGenerator sizes_generator = Facade.getNegExpIntegerGenerator(15);
+            IntegerGenerator apps_sizes_generator = null;
+            IntegerGenerator plats_sizes_generator = null;
+            if (poisson >= 0) {
+                apps_sizes_generator = Facade.getPoissonIntegerGenerator(poisson);
+                plats_sizes_generator = Facade.getPoissonIntegerGenerator(poisson);
+            } else if (negexp >= 0) {
+                apps_sizes_generator = Facade.getNegExpIntegerGenerator(negexp);
+                plats_sizes_generator = Facade.getNegExpIntegerGenerator(negexp);
+            }
             IntegerSetGenerator srv_generator = Facade.getNegExpIntegerSetGenerator(generatorLambda, generatorUniform);
+            /*BPGraph ffbpg = Facade.createRandomBPGraph(applicationPoolSize, serverPoolSize, servicePoolSize,
+                    sizes_generator, srv_generator, serverPoolSize, serverMaxConnections, applicationMinimumSize);*/
             BPGraph ffbpg = Facade.createRandomBPGraph(applicationPoolSize, serverPoolSize, servicePoolSize,
-                    sizes_generator, srv_generator, serverPoolSize, serverMaxConnections, applicationMinimumSize);
+                    apps_sizes_generator, plats_sizes_generator, srv_generator, serverPoolSize, serverMaxConnections, applicationMinimumSize, applicationMinimumSize);
             for (Integer serviceId : ffbpg.getAllUsedServices().toArray()) {
                 servicePool.add(new Service("s" + serviceId, serviceId, mutationProbability));
             }
@@ -320,16 +366,16 @@ public class Simulator {
             if (manager != null) {
                 manager.updateSliderPosition(currentTime);
             }
-            if(evolveServersNeutral) {
+            if (evolveServersNeutral) {
                 evolveServersNeutral();
             }
-            if(evolveServersEcology) {
+            if (evolveServersEcology) {
                 evolveServersEcological();
             }
-            if(evolveApplications) {
+            if (evolveApplications) {
                 evolveApplications();
             }
-            if(evolveServersWorstToBest) {
+            if (evolveServersWorstToBest) {
                 evolveServersWorstToBestService();
             }
             relink();

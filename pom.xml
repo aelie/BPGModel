@@ -6,7 +6,7 @@
     <groupId>fr.inria</groupId>
     <artifactId>BPGModel</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <repositories>
+    <!--repositories>
         <repository>
             <id>thingml-snapshot</id>
             <name>thingml-snapshot</name>
@@ -17,7 +17,7 @@
             <name>thingml-release</name>
             <url>http://maven.thingml.org/thingml-release/</url>
         </repository>
-    </repositories>
+    </repositories-->
     <dependencies>
         <dependency>
             <groupId>org.jfree</groupId>
@@ -30,11 +30,11 @@
             <version>4.10</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
+        <!--dependency>
             <groupId>eu.diversify</groupId>
             <artifactId>ffbpg</artifactId>
             <version>0.1.0-SNAPSHOT</version>
-        </dependency>
+        </dependency-->
         <dependency>
             <groupId>org.graphstream</groupId>
             <artifactId>gs-core</artifactId>
@@ -55,9 +55,50 @@
             <artifactId>log4j-core</artifactId>
             <version>2.0.2</version>
         </dependency>
+        <dependency>
+            <artifactId>eu.diversify</artifactId>
+            <groupId>ffbpg</groupId>
+            <version>0.1.0</version>
+            <scope>system</scope>
+            <systemPath>${basedir}/lib/ffbpg-0.1.0-SNAPSHOT.jar</systemPath>
+        </dependency>
+        <dependency>
+            <artifactId>absolute</artifactId>
+            <groupId>layout</groupId>
+            <version>0.1.0</version>
+            <scope>system</scope>
+            <systemPath>${basedir}/lib/AbsoluteLayout-SNAPSHOT.jar</systemPath>
+        </dependency>
     </dependencies>
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>individual.Simulator</mainClass>
+                        </manifest>
+                    </archive>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-my-jar-with-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>
