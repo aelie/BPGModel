@@ -2,6 +2,7 @@ package individual.gui;
 
 import javax.swing.*;
 import javax.swing.Timer;
+import javax.swing.plaf.metal.MetalSliderUI;
 import java.awt.*;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
@@ -18,7 +19,7 @@ import java.util.List;
  */
 public class Display extends JFrame {
 
-    String testFile = "/home/aelie/git/diversify/BPGModel/connections.log";
+    String testFile;
 
     JScrollPane jSP_display;
     JPanel jP_main;
@@ -42,6 +43,9 @@ public class Display extends JFrame {
     JLabel jL_actorType_value;
     JLabel jL_actorAge_value;
     JLabel jL_actorGeneration_value;
+    JLabel jL_actorConnections_value;
+    JLabel jL_actorServices_value;
+    JComboBox<String> jCB_services;
     JPanel jP_right;
     JList<String> jL_services;
     MouseListener mL_actorComponent;
@@ -78,6 +82,7 @@ public class Display extends JFrame {
     Map<Integer, List<ActorComponent>> applicationSituationHistory;
 
     public Display() {
+        testFile = System.getProperty("user.dir") + File.separator + "connections.log";
         preParseInputFile(testFile);
         init();
     }
@@ -155,35 +160,9 @@ public class Display extends JFrame {
         JPanel jP_info_slider = new JPanel();
         jP_info_slider.setLayout(new BorderLayout());
         jP_info_slider.add(buildSliderPanel(), BorderLayout.NORTH);
-        jP_info_slider.add(buildInfoPanel(), BorderLayout.CENTER);
+        jP_info_slider.add(buildAliveInfoPanel(), BorderLayout.CENTER);
         jP_top.add(jP_info_slider);
-        JPanel jP_actorInfo = new JPanel();
-        jP_actorInfo.setLayout(new GridLayout(0, 2));
-        JLabel jL_actorType = new JLabel("Type:");
-        jL_actorType.setHorizontalAlignment(JLabel.TRAILING);
-        JLabel jL_actorName = new JLabel("Name:");
-        jL_actorName.setHorizontalAlignment(JLabel.TRAILING);
-        JLabel jL_actorAge = new JLabel("Age:");
-        jL_actorAge.setHorizontalAlignment(JLabel.TRAILING);
-        JLabel jL_actorGeneration = new JLabel("Generation:");
-        jL_actorGeneration.setHorizontalAlignment(JLabel.TRAILING);
-        jL_actorType_value = new JLabel();
-        jL_actorType_value.setHorizontalAlignment(JLabel.LEADING);
-        jL_actorName_value = new JLabel();
-        jL_actorName_value.setHorizontalAlignment(JLabel.LEADING);
-        jL_actorAge_value = new JLabel();
-        jL_actorAge_value.setHorizontalAlignment(JLabel.LEADING);
-        jL_actorGeneration_value = new JLabel();
-        jL_actorGeneration_value.setHorizontalAlignment(JLabel.LEADING);
-        jP_actorInfo.add(jL_actorType);
-        jP_actorInfo.add(jL_actorType_value);
-        jP_actorInfo.add(jL_actorName);
-        jP_actorInfo.add(jL_actorName_value);
-        jP_actorInfo.add(jL_actorAge);
-        jP_actorInfo.add(jL_actorAge_value);
-        jP_actorInfo.add(jL_actorGeneration);
-        jP_actorInfo.add(jL_actorGeneration_value);
-        jP_top.add(jP_actorInfo);
+        jP_top.add(buildActorInfoPanel());
         return jP_top;
     }
 
@@ -204,7 +183,54 @@ public class Display extends JFrame {
         return jP_right;
     }
 
-    public JPanel buildInfoPanel() {
+    public JPanel buildActorInfoPanel() {
+        JPanel jP_actorInfo = new JPanel();
+        jP_actorInfo.setLayout(new GridLayout(0, 4));
+        JLabel jL_actorType = new JLabel("Type:");
+        jL_actorType.setHorizontalAlignment(JLabel.TRAILING);
+        JLabel jL_actorName = new JLabel("Name:");
+        jL_actorName.setHorizontalAlignment(JLabel.TRAILING);
+        JLabel jL_actorAge = new JLabel("Age:");
+        jL_actorAge.setHorizontalAlignment(JLabel.TRAILING);
+        JLabel jL_actorGeneration = new JLabel("Generation:");
+        jL_actorGeneration.setHorizontalAlignment(JLabel.TRAILING);
+        JLabel jL_actorConnections = new JLabel("Connections:");
+        jL_actorConnections.setHorizontalAlignment(JLabel.TRAILING);
+        JLabel jL_actorServices = new JLabel("Services:");
+        jL_actorServices.setHorizontalAlignment(JLabel.TRAILING);
+        JLabel jL_actorConnected = new JLabel("Connected:");
+        jL_actorConnected.setHorizontalAlignment(JLabel.TRAILING);
+        jL_actorType_value = new JLabel();
+        jL_actorType_value.setHorizontalAlignment(JLabel.LEADING);
+        jL_actorName_value = new JLabel();
+        jL_actorName_value.setHorizontalAlignment(JLabel.LEADING);
+        jL_actorAge_value = new JLabel();
+        jL_actorAge_value.setHorizontalAlignment(JLabel.LEADING);
+        jL_actorGeneration_value = new JLabel();
+        jL_actorGeneration_value.setHorizontalAlignment(JLabel.LEADING);
+        jL_actorConnections_value = new JLabel();
+        jL_actorConnections_value.setHorizontalAlignment(JLabel.LEADING);
+        jL_actorServices_value = new JLabel();
+        jL_actorServices_value.setHorizontalAlignment(JLabel.LEADING);
+        jCB_services = new JComboBox<>();
+        jP_actorInfo.add(jL_actorType);
+        jP_actorInfo.add(jL_actorType_value);
+        jP_actorInfo.add(jL_actorName);
+        jP_actorInfo.add(jL_actorName_value);
+        jP_actorInfo.add(jL_actorAge);
+        jP_actorInfo.add(jL_actorAge_value);
+        jP_actorInfo.add(jL_actorGeneration);
+        jP_actorInfo.add(jL_actorGeneration_value);
+        jP_actorInfo.add(jL_actorConnections);
+        jP_actorInfo.add(jL_actorConnections_value);
+        jP_actorInfo.add(jL_actorServices);
+        jP_actorInfo.add(jL_actorServices_value);
+        jP_actorInfo.add(jL_actorConnected);
+        jP_actorInfo.add(jCB_services);
+        return  jP_actorInfo;
+    }
+
+    public JPanel buildAliveInfoPanel() {
         jP_info = new JPanel();
         jP_info.setLayout(new FlowLayout(FlowLayout.LEADING));
         JLabel jL_servers_alive_label = new JLabel("Servers alive:");
@@ -232,6 +258,17 @@ public class Display extends JFrame {
         jS_slider.addChangeListener(e -> {
             JSlider source = (JSlider) e.getSource();
             setGraph(source.getValue());
+        });
+        jS_slider.setUI(new MetalSliderUI() {
+            protected void scrollDueToClickInTrack(int direction) {
+                int value = slider.getValue();
+                if (slider.getOrientation() == JSlider.HORIZONTAL) {
+                    value = this.valueForXPosition(slider.getMousePosition().x);
+                } else if (slider.getOrientation() == JSlider.VERTICAL) {
+                    value = this.valueForYPosition(slider.getMousePosition().y);
+                }
+                slider.setValue(value);
+            }
         });
         jB_begin = new JButton("<<");
         jB_begin.addActionListener(e -> setGraph(0));
@@ -278,7 +315,7 @@ public class Display extends JFrame {
         jP_slider.add(jB_next);
         jP_slider.add(jB_end);
         jP_slider.add(jB_play);
-        jP_slider.add(jCB_dead);
+        //jP_slider.add(jCB_dead);
         return jP_slider;
     }
 
@@ -315,6 +352,7 @@ public class Display extends JFrame {
     }
 
     public void preParseInputFile(String inputFile) {
+        System.out.println("Parsing log file...");
         serverNames = new LinkedHashSet<>();
         applicationNames = new LinkedHashSet<>();
         serviceNames = new LinkedHashSet<>();
@@ -372,52 +410,70 @@ public class Display extends JFrame {
     }
 
     public void buildSituations() {
+        System.out.println("Building graph database...");
         serverSituationHistory = new HashMap<>();
+        applicationSituationHistory = new HashMap<>();
+        FakeServer livingServer;
+        FakeApplication livingApplication;
+        int stepStartResearch;
+        int state = ActorComponent.ALIVE;
+        int counter;
+        List<ActorComponent> serverSituationStep;
+        List<ActorComponent> applicationSituationStep;
         for (int step = 0; step < stepNumber; step++) {
-            serverSituationHistory.put(step, new ArrayList<>());
+            //serverSituationHistory.put(step, new ArrayList<>());
+            serverSituationStep = new ArrayList<>();
+            stepStartResearch = 0;
             for (String serverName : serverNames) {
-                FakeServer livingServer;
-                int state;
                 if ((livingServer = (FakeServer) findInStep(serverName, serverHistory, step)) != null) {
                     state = ActorComponent.ALIVE;
-                } else {
-                    int counter = 0;
+                    serverSituationStep.add(new ActorComponent(livingServer, state));
+                } /*else {
+                    counter = stepStartResearch;
                     while (livingServer == null && counter < stepNumber) {
                         livingServer = (FakeServer) findInStep(serverName, serverHistory, counter);
                         counter++;
                     }
+                    stepStartResearch = counter - 1;
                     if (counter > step) {
                         state = ActorComponent.LIMBO;
                     } else {
                         state = ActorComponent.DEAD;
                     }
-                }
-                serverSituationHistory.get(step).add(new ActorComponent(livingServer, state));
+                }*/
+                //serverSituationHistory.get(step).add(new ActorComponent(livingServer, state));
+                //serverSituationStep.add(new ActorComponent(livingServer, state));
             }
-        }
-        applicationSituationHistory = new HashMap<>();
-        for (int step = 0; step < stepNumber; step++) {
-            applicationSituationHistory.put(step, new ArrayList<>());
+            serverSituationHistory.put(step, serverSituationStep);
+            //applicationSituationHistory.put(step, new ArrayList<>());
+            applicationSituationStep = new ArrayList<>();
+            stepStartResearch = 0;
             for (String applicationName : applicationNames) {
-                FakeApplication livingApplication;
-                int state;
                 if ((livingApplication = (FakeApplication) findInStep(applicationName, applicationHistory, step)) != null) {
                     state = ActorComponent.ALIVE;
-                } else {
-                    int counter = 0;
+                    applicationSituationStep.add(new ActorComponent(livingApplication, state));
+                } /*else {
+                    counter = stepStartResearch;
                     while (livingApplication == null && counter < stepNumber) {
                         livingApplication = (FakeApplication) findInStep(applicationName, applicationHistory, counter);
                         counter++;
                     }
+                    stepStartResearch = counter - 1;
                     if (counter > step) {
                         state = ActorComponent.LIMBO;
                     } else {
                         state = ActorComponent.DEAD;
                     }
-                }
-                applicationSituationHistory.get(step).add(new ActorComponent(livingApplication, state));
+                }*/
+                //applicationSituationHistory.get(step).add(new ActorComponent(livingApplication, state));
+                //applicationSituationStep.add(new ActorComponent(livingApplication, state));
+            }
+            applicationSituationHistory.put(step, applicationSituationStep);
+            if (step % 50 == 0) {
+                System.out.print("*");
             }
         }
+        System.out.println();
     }
 
     public FakeActor findInStep(String actorName, Map actorHistory, int step) {
@@ -495,7 +551,11 @@ public class Display extends JFrame {
                 }
             } else {
                 for (ActorComponent displayedServer : serverSituationHistory.get(currentStep)) {
-
+                    for (FakeApplication fakeApplication : graphHistory.get(currentStep).get(displayedServer.getFakeActor())) {
+                        if (fakeApplication.name.equals(actorComponent.getFakeActor().name)) {
+                            linkedComponents.add(displayedServer);
+                        }
+                    }
                 }
             }
             actorComponent.setHighlighted(true);

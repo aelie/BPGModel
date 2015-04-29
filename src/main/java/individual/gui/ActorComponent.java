@@ -108,37 +108,42 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
         int offset = 5;
         int componentSize = 0;
         super.paintComponent(g);
-        int colorComponent = (int) (age / (double) Display.stepNumber * 255);
-        Color backgroundAge = new Color(255 - colorComponent, 255 - colorComponent, 255 - colorComponent);
+        int ageColorComponent = (int) (age / (double) Display.stepNumber * 150);
+        Color backgroundAgeColor = new Color(255 - ageColorComponent, 255 - ageColorComponent, 255 - ageColorComponent);
+        Color serverGenerationColor = new Color((int) (255 - generation / (double) Display.maxServerGeneration * 255), 0, 0);
         if (state == LIMBO) {
-            backgroundAge = Color.magenta;
+            backgroundAgeColor = Color.magenta;
         } else if (state == DEAD) {
-            backgroundAge = Color.red;
+            backgroundAgeColor = Color.red;
         }
-        g.setColor(backgroundAge);
+        g.setColor(backgroundAgeColor);
         g.fillRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
         if (highlighted) {
-            g.setColor(Color.red);
+            g.setColor(Color.black);
             ((Graphics2D)g).setStroke(new BasicStroke(10));
             g.drawRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
+            ((Graphics2D)g).setStroke(new BasicStroke(1));
         }
         if (type == ActorComponent.SERVER) {
-            g.setColor(new Color(0, 0, (int) (255 - generation / (double) Display.maxServerGeneration * 255)));
+            g.setColor(serverGenerationColor);
             componentSize = (int) (services.size() / (double) Display.maxServerSize * (Display.componentBaseSize - offset * 2));
         } else if (type == ActorComponent.APPLICATION) {
             g.setColor(new Color(0, (int) (255 - generation / (double) Display.maxApplicationGeneration * 255), 0));
             componentSize = (int) (services.size() / (double) Display.maxApplicationSize * (Display.componentBaseSize - offset * 2));
         }
         if (shape == ActorComponent.CIRCLE) {
-            int arc = (int) (actorConnections / (double) maxConnections * 360) % 360;
+            int arc = (int) ((1 - actorConnections / (double) maxConnections) * 360);
             if (type != ActorComponent.EMPTY) {
                 g.fillOval((Display.componentBaseSize - componentSize) / 2, (Display.componentBaseSize - componentSize) / 2,
                         componentSize, componentSize);
             }
             if (type == ActorComponent.SERVER) {
-                g.setColor(backgroundAge);
+                g.setColor(backgroundAgeColor);
                 g.fillArc((Display.componentBaseSize - componentSize) / 2, (Display.componentBaseSize - componentSize) / 2,
                         componentSize, componentSize, 90 - arc / 2, arc);
+                g.setColor(serverGenerationColor);
+                g.drawOval((Display.componentBaseSize - componentSize) / 2, (Display.componentBaseSize - componentSize) / 2,
+                        componentSize, componentSize);
             }
         } else {
             int height = (int) ((1 - actorConnections / (double) maxConnections) * componentSize);
@@ -147,10 +152,10 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
                         componentSize, componentSize);
             }
             if (type == ActorComponent.SERVER) {
-                g.setColor(backgroundAge);
+                g.setColor(backgroundAgeColor);
                 g.fillRect((Display.componentBaseSize - componentSize) / 2, (Display.componentBaseSize - componentSize) / 2,
                         componentSize, height);
-                g.setColor(new Color(0, 0, (int) (255 - generation / (double) Display.maxServerGeneration * 255)));
+                g.setColor(serverGenerationColor);
                 g.drawRect((Display.componentBaseSize - componentSize) / 2, (Display.componentBaseSize - componentSize) / 2,
                         componentSize, componentSize);
             }
