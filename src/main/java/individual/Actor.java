@@ -7,11 +7,23 @@ import java.util.Set;
  */
 public interface Actor {
 
-    public String getName();
+    String name = "Actor";
+    int generation = 0;
+    int age = 0;
 
-    public void setName(String name);
+    String getName();
 
-    public Set<Service> getServices();
+    void setName(String name);
 
-    public void setServices(Set<Service> services);
+    int getGeneration();
+
+    void setGeneration(int generation);
+
+    void newGeneration();
+
+    void older();
+
+    Set<Service> getServices();
+
+    void setServices(Set<Service> services);
 }

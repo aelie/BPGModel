@@ -1,43 +1,73 @@
 package individual;
+
+import tools.Tools;
+
 import java.io.Serializable;
-import java.util.*;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Created by aelie on 03/09/14.
  */
 public class Server implements Actor, Serializable {
     String name;
+    int generation = 0;
     Set<Service> services;
     int maxConnectionNumber;
     int currentConnectionNumber = 0; //nombre applicationPool connectées
     //int neededResource;
-    //int age;
+    int age = 0;
 
-    public Server(String name, Set<Service> services, int maxConnectionNumber) {
+    public Server(String name, int generation, Set<Service> services, int maxConnectionNumber) {
         this.name = name;
+        this.generation = generation;
         this.services = services;
         this.maxConnectionNumber = maxConnectionNumber;
     }
 
-    public Set<Application> getConnectedApplications(Map<Server, Map<Application, Set<Service>>> connections) {
-        return connections.get(this).keySet();
-    }
-
-    public void mutate() {
-        Set<Service> mutatedServices = new LinkedHashSet<Service>();
-        for(Service service : Simulator.getInstance().getServicePool()) {
-            if(Simulator.getInstance().getRandom().nextDouble() < service.getMutationProbability()) {
-                if(!services.contains(service)) {
+    /*public void mutate() {
+        Set<Service> mutatedServices = new LinkedHashSet<>();
+        for (Service service : Simulator.getInstance().getServicePool()) {
+            if (Simulator.getInstance().getRandom().nextDouble() < service.getMutationProbability()) {
+                if (!services.contains(service)) {
                     mutatedServices.add(service);
                 }
             } else {
-                if(services.contains(service)) {
+                if (services.contains(service)) {
                     mutatedServices.add(service);
                 }
             }
         }
         services = mutatedServices;
     }
+
+    public void mutateMostUseless(Map<Server, Set<Application>> connections) {
+        if(services != null) {
+            Set<Service> mutatedServices = new LinkedHashSet<>();
+            List<Service> sortedServices = Tools.getServicesOrderedByUsage(this, connections);
+            for (Service service : Simulator.getInstance().getServicePool()) {
+                if (!services.contains(service)) {
+                    if (Simulator.getInstance().getRandom().nextDouble() < service.getMutationProbability()) {
+                        mutatedServices.add(service);
+                    } else {
+                        if (services.contains(service)) {
+                            mutatedServices.add(service);
+                        }
+                    }
+                } else {
+                    double mutationProbability = sortedServices.indexOf(service) / (double) sortedServices.size();
+                    if (Simulator.getInstance().getRandom().nextDouble() < mutationProbability) {
+                        mutatedServices.add(new ArrayList<>(Simulator.getInstance().getServicePool()).get(
+                                Simulator.getInstance().getRandom().nextInt(Simulator.getInstance().getServicePool().size())));
+                    } else {
+                        mutatedServices.add(service);
+                    }
+                }
+            }
+            services = mutatedServices;
+        }
+    }*/
 
     @Override
     public String getName() {
@@ -47,6 +77,26 @@ public class Server implements Actor, Serializable {
     @Override
     public void setName(String name) {
         this.name = name;
+    }
+
+    @Override
+    public int getGeneration() {
+        return generation;
+    }
+
+    @Override
+    public void setGeneration(int generation) {
+        this.generation = generation;
+    }
+
+    @Override
+    public void newGeneration() {
+        generation++;
+    }
+
+    @Override
+    public void older() {
+        age++;
     }
 
     public Set<Service> getServices() {
@@ -86,7 +136,7 @@ public class Server implements Actor, Serializable {
     }
 
     public void addConnection() {
-        if(canConnect()) {
+        if (canConnect()) {
             currentConnectionNumber++;
         } else {
             System.err.println("Server " + name + " can't add connection");
@@ -94,7 +144,7 @@ public class Server implements Actor, Serializable {
     }
 
     public void removeConnection() {
-        if(canDisconnect()) {
+        if (canDisconnect()) {
             currentConnectionNumber--;
         } else {
             System.err.println("Server " + name + " can't remove connection");
@@ -105,7 +155,19 @@ public class Server implements Actor, Serializable {
         currentConnectionNumber = 0;
     }
 
+    @Override
     public String toString() {
         return name;
+    }
+
+    public String toVerboseString(Map<Server, Set<Application>> connections) {
+        return name
+                + "/" + generation
+                + "/" + maxConnectionNumber
+                + "/" + Tools.getSatisfiedApplications(this, connections).size()
+                + "/" + age
+                + "/" + services.stream()
+                .map(Service::getName)
+                .collect(Collectors.joining("/"));
     }
 }

@@ -76,6 +76,75 @@ public class Tools {
         return sum / (double) (actors.size() * (actors.size() - 1));
     }
 
+    public static List<Service> getServicesOrderedByUsage(Server server, Map<Server, Set<Application>> connections) {
+        Set<Application> connectedApplications = connections.get(server);
+        Map<Service, Integer> serviceUsageMap = new HashMap<>();
+        for (Service service : server.getServices()) {
+            serviceUsageMap.put(service, 0);
+        }
+        if (connectedApplications != null) {
+            for (Application app : connectedApplications) {
+                for (Service service : getMatchingServices(app.getServices(), server.getServices())) {
+                    serviceUsageMap.put(service, serviceUsageMap.get(service) + 1);
+                }
+            }
+            List<Service> sortedServices = new ArrayList<>(serviceUsageMap.keySet());
+            Collections.sort(sortedServices, new Comparator<Service>() {
+                @Override
+                public int compare(Service s1, Service s2) {
+                    return serviceUsageMap.get(s2) - serviceUsageMap.get(s1);
+                }
+            });
+            return sortedServices;
+        } else {
+            return new ArrayList<>();
+        }
+    }
+
+    public static Set<Service> getMutatedServices(Server server) {
+        Set<Service> mutatedServices = new LinkedHashSet<>();
+        for (Service service : Simulator.getInstance().getServicePool()) {
+            if (Simulator.getInstance().getRandom().nextDouble() < service.getMutationProbability()) {
+                if (!server.getServices().contains(service)) {
+                    mutatedServices.add(service);
+                }
+            } else {
+                if (server.getServices().contains(service)) {
+                    mutatedServices.add(service);
+                }
+            }
+        }
+        return mutatedServices;
+    }
+
+    public static Set<Service> getMostUselessServicesMutated(Server server, Map<Server, Set<Application>> connections) {
+        Set<Service> mutatedServices = new LinkedHashSet<>();
+        List<Service> sortedServices = getServicesOrderedByUsage(server, connections);
+        if (server.getServices() != null) {
+            for (Service service : Simulator.getInstance().getServicePool()) {
+                if (!server.getServices().contains(service)) {
+                    double mutationProbability = (sortedServices.size() / 2.) / (double)(Simulator.getInstance().getServicePool().size() - server.getServices().size());
+                    if (Simulator.getInstance().getRandom().nextDouble() < mutationProbability/*service.getMutationProbability()*/) {
+                        mutatedServices.add(service);
+                    } else {
+                        if (server.getServices().contains(service)) {
+                            mutatedServices.add(service);
+                        }
+                    }
+                } else {
+                    double mutationProbability = (sortedServices.indexOf(service) + 1) / (double) sortedServices.size();
+                    if (Simulator.getInstance().getRandom().nextDouble() < mutationProbability) {
+                        //mutatedServices.add(new ArrayList<>(Simulator.getInstance().getServicePool()).get(
+                        //        Simulator.getInstance().getRandom().nextInt(Simulator.getInstance().getServicePool().size())));
+                    } else {
+                        mutatedServices.add(service);
+                    }
+                }
+            }
+        }
+        return mutatedServices;
+    }
+
     public static List<Double> robustnessRandom(Map<Server, Set<Application>> connections, int direction) {
         List<Double> extinctionSequence = new ArrayList<>();
         double robustnessMax = getAliveServers(connections).size() * getAliveApplications(connections).size();
