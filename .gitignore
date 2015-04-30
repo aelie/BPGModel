@@ -6,3 +6,4 @@ results/**
 META-INF/**
 BPGModel.iml
 pom.xml
+connections.log
