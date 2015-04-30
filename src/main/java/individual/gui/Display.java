@@ -45,7 +45,7 @@ public class Display extends JFrame {
     JLabel jL_actorGeneration_value;
     JLabel jL_actorConnections_value;
     JLabel jL_actorServices_value;
-    JComboBox<String> jCB_services;
+    JLabel jL_actorConnected_value;
     JPanel jP_right;
     JList<String> jL_services;
     MouseListener mL_actorComponent;
@@ -53,8 +53,8 @@ public class Display extends JFrame {
     public static int screen_height = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDisplayMode().getHeight();
     static int bigComponentSize = screen_width / 35;
     static int smallComponentSize = screen_width / 70;
+    static int servicesPanelWidth = 120;
     public static int componentBaseSize = bigComponentSize;
-    List<JPanel> jP_generations_list;
 
     int currentStep;
     boolean isPlaying = false;
@@ -81,8 +81,14 @@ public class Display extends JFrame {
     Map<Integer, List<ActorComponent>> serverSituationHistory;
     Map<Integer, List<ActorComponent>> applicationSituationHistory;
 
+    List<ActorComponent> connectedTo;
+
     public Display() {
         testFile = System.getProperty("user.dir") + File.separator + "connections.log";
+        if (!new File(testFile).exists()) {
+            System.err.println("File " + testFile + " not found! Exiting...");
+            System.exit(-1);
+        }
         preParseInputFile(testFile);
         init();
     }
@@ -95,21 +101,23 @@ public class Display extends JFrame {
         jP_display = new JPanel();
         jP_display.setLayout(new BorderLayout());
         jP_display_servers = new JPanel();
-        jP_display_servers.setLayout(new WrapLayout(FlowLayout.LEADING));
+        jP_display_servers.setLayout(new WrapLayout(FlowLayout.CENTER));
         ((WrapLayout) jP_display_servers.getLayout()).setHgap(1);
         ((WrapLayout) jP_display_servers.getLayout()).setVgap(1);
-        jP_display_servers.setPreferredSize(new Dimension((int) (screen_width / 4.0) - 120, screen_height - 150));
+        jP_display_servers.setPreferredSize(new Dimension((int) ((screen_width - servicesPanelWidth) / 4.0), screen_height - 150));
         jP_display_servers.setBorder(BorderFactory.createEtchedBorder());
         jP_display_applications = new JPanel();
-        jP_display_applications.setLayout(new WrapLayout(FlowLayout.LEADING));
-        jP_display_applications.setPreferredSize(new Dimension((int) (screen_width * 3 / 4.0) - 120, screen_height - 150));
+        jP_display_applications.setLayout(new WrapLayout(FlowLayout.CENTER));
+        ((WrapLayout) jP_display_applications.getLayout()).setHgap(1);
+        ((WrapLayout) jP_display_applications.getLayout()).setVgap(1);
+        jP_display_applications.setPreferredSize(new Dimension((int) ((screen_width - servicesPanelWidth) * 3 / 4.0), screen_height - 150));
         jP_display_applications.setBorder(BorderFactory.createEtchedBorder());
         jP_display.add(jP_display_servers, BorderLayout.WEST);
         jP_display.add(jP_display_applications, BorderLayout.CENTER);
         jP_main.add(buildTopPanel(), BorderLayout.NORTH);
-        jP_main.add(buildRightPanel(), BorderLayout.EAST);
-        jSP_display = new JScrollPane(jP_display);
-        jP_main.add(jSP_display, BorderLayout.CENTER);
+        jP_main.add(buildServicesPanel(), BorderLayout.EAST);
+        //jSP_display = new JScrollPane(jP_display);
+        jP_main.add(jP_display, BorderLayout.CENTER);
         getContentPane().add(jP_main);
         mL_actorComponent = new MouseListener() {
 
@@ -138,8 +146,8 @@ public class Display extends JFrame {
             public void mouseEntered(MouseEvent e) {
                 Object source = e.getSource();
                 if (source instanceof ActorComponent) {
-                    displayActor((ActorComponent) source);
                     displayLinks((ActorComponent) source);
+                    displayActor((ActorComponent) source);
                 }
             }
 
@@ -147,8 +155,8 @@ public class Display extends JFrame {
             public void mouseExited(MouseEvent e) {
                 Object source = e.getSource();
                 if (source instanceof ActorComponent) {
-                    displayActor(null);
                     displayLinks(null);
+                    displayActor(null);
                 }
             }
         };
@@ -166,26 +174,34 @@ public class Display extends JFrame {
         return jP_top;
     }
 
-    public JPanel buildRightPanel() {
+    public JPanel buildServicesPanel() {
         jP_right = new JPanel();
+        jP_right.setPreferredSize(new Dimension(servicesPanelWidth, 0));
         jL_services = new JList<>(new DefaultListModel<>());
         jL_services.setCellRenderer(new BoldListCellRenderer());
         jL_services.setLayoutOrientation(JList.VERTICAL);
         JScrollPane jSP_services = new JScrollPane(jL_services);
         List<String> orderedServiceNames = new ArrayList<>(serviceNames);
-        Collections.sort(orderedServiceNames);
+        Collections.sort(orderedServiceNames, (o1, o2) -> Integer.parseInt(o1.replaceAll("[^0-9]+", "")) - Integer.parseInt(o2.replaceAll("[^0-9]+", "")));
         for (String service : orderedServiceNames) {
             ((DefaultListModel<String>) jL_services.getModel()).addElement(service);
         }
         jP_right.setLayout(new BorderLayout());
-        jP_right.add(new JLabel("Services:"), BorderLayout.NORTH);
+        jP_right.add(new JLabel("Services"), BorderLayout.NORTH);
+        jP_right.add(new JLabel("name (demand): connection"), BorderLayout.SOUTH);
         jP_right.add(jSP_services, BorderLayout.CENTER);
         return jP_right;
     }
 
     public JPanel buildActorInfoPanel() {
         JPanel jP_actorInfo = new JPanel();
-        jP_actorInfo.setLayout(new GridLayout(0, 4));
+        jP_actorInfo.setLayout(new BorderLayout());
+        jP_actorInfo.setPreferredSize(new Dimension(800, 80));
+        JPanel jP_info_grid = new JPanel();
+        jP_info_grid.setLayout(new GridLayout(0, 4));
+        ((GridLayout) jP_info_grid.getLayout()).setHgap(5);
+        JPanel jP_info_connected = new JPanel();
+        jP_info_connected.setLayout(new FlowLayout(FlowLayout.LEADING));
         JLabel jL_actorType = new JLabel("Type:");
         jL_actorType.setHorizontalAlignment(JLabel.TRAILING);
         JLabel jL_actorName = new JLabel("Name:");
@@ -212,22 +228,25 @@ public class Display extends JFrame {
         jL_actorConnections_value.setHorizontalAlignment(JLabel.LEADING);
         jL_actorServices_value = new JLabel();
         jL_actorServices_value.setHorizontalAlignment(JLabel.LEADING);
-        jCB_services = new JComboBox<>();
-        jP_actorInfo.add(jL_actorType);
-        jP_actorInfo.add(jL_actorType_value);
-        jP_actorInfo.add(jL_actorName);
-        jP_actorInfo.add(jL_actorName_value);
-        jP_actorInfo.add(jL_actorAge);
-        jP_actorInfo.add(jL_actorAge_value);
-        jP_actorInfo.add(jL_actorGeneration);
-        jP_actorInfo.add(jL_actorGeneration_value);
-        jP_actorInfo.add(jL_actorConnections);
-        jP_actorInfo.add(jL_actorConnections_value);
-        jP_actorInfo.add(jL_actorServices);
-        jP_actorInfo.add(jL_actorServices_value);
-        jP_actorInfo.add(jL_actorConnected);
-        jP_actorInfo.add(jCB_services);
-        return  jP_actorInfo;
+        jL_actorConnected_value = new JLabel();
+        jL_actorConnected_value.setHorizontalAlignment(JLabel.LEADING);
+        jP_info_grid.add(jL_actorType);
+        jP_info_grid.add(jL_actorType_value);
+        jP_info_grid.add(jL_actorName);
+        jP_info_grid.add(jL_actorName_value);
+        jP_info_grid.add(jL_actorAge);
+        jP_info_grid.add(jL_actorAge_value);
+        jP_info_grid.add(jL_actorGeneration);
+        jP_info_grid.add(jL_actorGeneration_value);
+        jP_info_grid.add(jL_actorConnections);
+        jP_info_grid.add(jL_actorConnections_value);
+        jP_info_grid.add(jL_actorServices);
+        jP_info_grid.add(jL_actorServices_value);
+        jP_info_connected.add(jL_actorConnected);
+        jP_info_connected.add(jL_actorConnected_value);
+        jP_actorInfo.add(jP_info_grid, BorderLayout.CENTER);
+        jP_actorInfo.add(jP_info_connected, BorderLayout.SOUTH);
+        return jP_actorInfo;
     }
 
     public JPanel buildAliveInfoPanel() {
@@ -254,7 +273,7 @@ public class Display extends JFrame {
         jP_slider = new JPanel();
         jP_slider.setLayout(new FlowLayout(FlowLayout.LEADING));
         jS_slider = new JSlider(JSlider.HORIZONTAL, 0, stepNumber - 1, 1);
-        jS_slider.setPreferredSize(new Dimension((int) (screen_width / 2.0), 20));
+        jS_slider.setPreferredSize(new Dimension((int) (screen_width / 4.0), 20));
         jS_slider.addChangeListener(e -> {
             JSlider source = (JSlider) e.getSource();
             setGraph(source.getValue());
@@ -318,26 +337,6 @@ public class Display extends JFrame {
         //jP_slider.add(jCB_dead);
         return jP_slider;
     }
-
-    /*public void generationsDisplay() {
-        jP_display_servers.setPreferredSize(new Dimension((int) (screen_width * 2 / 4.0) - 20, screen_height - 150));
-        jP_display_applications.setPreferredSize(new Dimension((int) (screen_width * 2 / 4.0) - 20, screen_height - 150));
-        jP_display_servers.setLayout(new BoxLayout(jP_display_servers, BoxLayout.Y_AXIS));
-        jP_generations_list = new ArrayList<>();
-        for (int i = 0; i < maxServerGeneration + 1; i++) {
-            JPanel generationPanel = new JPanel();
-            generationPanel.setLayout(new WrapLayout(FlowLayout.LEADING));
-            generationPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            jP_generations_list.add(generationPanel);
-            jP_display_servers.add(generationPanel);
-        }
-        for (String actorName : serverNames) {
-            ActorComponent displayedActor;
-            if ((displayedActor = getActorToDisplay(actorName, serverComponentsByGeneration)) != null) {
-                jP_generations_list.get(displayedActor.getGeneration()).add(displayedActor);
-            }
-        }
-    }*/
 
     public void playEvolution() {
         ActionListener taskPerformer = evt -> setGraph(currentStep < stepNumber ? ++currentStep : stepNumber);
@@ -489,6 +488,17 @@ public class Display extends JFrame {
         currentStep = step;
         jTF_step.setText(Integer.toString(currentStep));
         jS_slider.setValue(currentStep);
+        Map<String, Double> servicesDemand = new HashMap<>();
+        for (String service : serviceNames) {
+            servicesDemand.put(service, 0.0);
+            for (ActorComponent actorComponent : applicationSituationHistory.get(step)) {
+                if (actorComponent.getServices().contains(service)) {
+                    servicesDemand.put(service, servicesDemand.get(service) + 1);
+                }
+            }
+            servicesDemand.put(service, servicesDemand.get(service) / (double)applicationSituationHistory.get(step).size());
+        }
+        ((BoldListCellRenderer) jL_services.getCellRenderer()).setItemsDemand(servicesDemand);
         jP_display_servers.removeAll();
         jP_display_applications.removeAll();
         jP_main.updateUI();
@@ -526,26 +536,47 @@ public class Display extends JFrame {
             jL_actorName_value.setText(actorComponent.getName());
             jL_actorAge_value.setText(Integer.toString(actorComponent.getAge()));
             jL_actorGeneration_value.setText(Integer.toString(actorComponent.getGeneration()));
-            ((BoldListCellRenderer) jL_services.getCellRenderer()).setBoldItems(actorComponent.getServices());
+            jL_actorConnections_value.setText(Integer.toString(actorComponent.getFakeActor().connections));
+            jL_actorServices_value.setText(Integer.toString(actorComponent.getActorSize()));
+            if (connectedTo.size() > 0) {
+                jL_actorConnected_value.setText(connectedTo.get(0).getName());
+                for (int i = 1; i < connectedTo.size(); i++) {
+                    jL_actorConnected_value.setText(jL_actorConnected_value.getText() + " / " + connectedTo.get(i).getName());
+                }
+            }
+            Map<String, Double> satisfactionMap = new HashMap<>();
+            for (String service : actorComponent.getServices()) {
+                satisfactionMap.put(service, 0.0);
+                for (ActorComponent connected : connectedTo) {
+                    if (connected.getServices().contains(service)) {
+                        satisfactionMap.put(service, satisfactionMap.get(service) + 1);
+                    }
+                }
+                satisfactionMap.put(service, satisfactionMap.get(service) / (double)connectedTo.size());
+            }
+            ((BoldListCellRenderer) jL_services.getCellRenderer()).setBoldItems(satisfactionMap);
             jL_services.updateUI();
         } else {
             jL_actorType_value.setText("");
             jL_actorName_value.setText("");
             jL_actorAge_value.setText("");
             jL_actorGeneration_value.setText("");
-            ((BoldListCellRenderer) jL_services.getCellRenderer()).setBoldItems(null);
+            jL_actorConnections_value.setText("");
+            jL_actorServices_value.setText("");
+            jL_actorConnected_value.setText("");
+            ((BoldListCellRenderer) jL_services.getCellRenderer()).setBoldItems(new HashMap<>());
             jL_services.updateUI();
         }
     }
 
     public void displayLinks(ActorComponent actorComponent) {
         if (actorComponent != null) {
-            List<ActorComponent> linkedComponents = new ArrayList<>();
+            connectedTo = new ArrayList<>();
             if (actorComponent.getType() == ActorComponent.SERVER) {
                 for (ActorComponent displayedApplication : applicationSituationHistory.get(currentStep)) {
                     for (FakeApplication fakeApplication : graphHistory.get(currentStep).get(actorComponent.getFakeActor())) {
                         if (fakeApplication.name.equals(displayedApplication.getFakeActor().name)) {
-                            linkedComponents.add(displayedApplication);
+                            connectedTo.add(displayedApplication);
                         }
                     }
                 }
@@ -553,13 +584,13 @@ public class Display extends JFrame {
                 for (ActorComponent displayedServer : serverSituationHistory.get(currentStep)) {
                     for (FakeApplication fakeApplication : graphHistory.get(currentStep).get(displayedServer.getFakeActor())) {
                         if (fakeApplication.name.equals(actorComponent.getFakeActor().name)) {
-                            linkedComponents.add(displayedServer);
+                            connectedTo.add(displayedServer);
                         }
                     }
                 }
             }
             actorComponent.setHighlighted(true);
-            for (ActorComponent linkedComponent : linkedComponents) {
+            for (ActorComponent linkedComponent : connectedTo) {
                 linkedComponent.setHighlighted(true);
             }
         } else {
@@ -576,20 +607,32 @@ public class Display extends JFrame {
 
 class BoldListCellRenderer extends DefaultListCellRenderer {
 
-    List<String> boldItems;
+    Map<String, Double> boldItems = new HashMap<>();
+    Map<String, Double> itemsDemand = new HashMap<>();
 
-    public void setBoldItems(List<String> boldItems) {
+    public void setBoldItems(Map<String, Double> boldItems) {
         this.boldItems = boldItems;
+    }
+
+    public void setItemsDemand(Map<String, Double> itemsDemand) {
+        this.itemsDemand = itemsDemand;
     }
 
     @Override
     public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
         Component item = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-        if (value != null && boldItems != null) {
-            if (boldItems.contains(value)) {
-                item.setBackground(Color.LIGHT_GRAY);
-            } else {
-                item.setBackground(UIManager.getColor("Panel.background"));
+        if (value != null) {
+            if (itemsDemand.keySet().contains(value)) {
+                String demand = Double.toString(itemsDemand.get(value));
+                ((BoldListCellRenderer) item).setText(((BoldListCellRenderer) item).getText()
+                        + " (" + demand.substring(0, Math.min(5, demand.length())) + ")");
+            }
+            if (boldItems.keySet().contains(value)) {
+                item.setBackground(new Color((int)(boldItems.get(value) * 255), 0, 0));
+                item.setForeground(Color.white);
+                String demand = Double.toString(boldItems.get(value));
+                ((BoldListCellRenderer) item).setText(((BoldListCellRenderer) item).getText()
+                        + ": " + demand.substring(0, Math.min(5, demand.length())));
             }
         }
         return item;
