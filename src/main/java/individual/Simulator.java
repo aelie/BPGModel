@@ -72,6 +72,7 @@ public class Simulator {
     static int poisson = -1;
     static int negexp = -1;
     static boolean display = false;
+    static boolean log = false;
 
     static boolean testRobustness = false;
     static boolean testSimulations = false;
@@ -134,6 +135,9 @@ public class Simulator {
             }
             if (args[i].equalsIgnoreCase("-display")) {
                 display = true;
+            }
+            if (args[i].equalsIgnoreCase("-log")) {
+                log = true;
             }
         }
         if(display) {
@@ -388,10 +392,12 @@ public class Simulator {
 
     public void runUntil(int desiredTime) {
         PrintWriter pw_C = null;
-        try {
-            pw_C = new PrintWriter("connections.log", "UTF-8");
-        } catch (FileNotFoundException | UnsupportedEncodingException e) {
-            e.printStackTrace();
+        if(log) {
+            try {
+                pw_C = new PrintWriter("connections.log", "UTF-8");
+            } catch (FileNotFoundException | UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
         }
         int targetTime = Math.min(desiredTime, maxTime);
         while (currentTime < targetTime && !onPause) {
