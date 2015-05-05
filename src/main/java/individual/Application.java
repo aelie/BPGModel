@@ -17,6 +17,7 @@ public class Application implements Actor, Serializable {
     Application mother = null;
     Set<Service> services;
     int age = 0;
+    Set<Server> neighborhood;
 
     public Application(String name, int generation, Set<Service> services) {
         this.name = name;
@@ -65,6 +66,14 @@ public class Application implements Actor, Serializable {
     public void setParents(Application father, Application mother) {
         this.father = father;
         this.mother = mother;
+    }
+
+    public Set<Server> getNeighborhood() {
+        return neighborhood;
+    }
+
+    public void setNeighborhood(Set<Server> neighborhood) {
+        this.neighborhood = neighborhood;
     }
 
     @Override

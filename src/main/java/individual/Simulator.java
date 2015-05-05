@@ -39,6 +39,7 @@ public class Simulator {
     static double generatorLambda = 0.25;
     static double generatorUniform = 0.005;
     static int generatorPoisson = 6;
+    static int neighborhoodSize = 10;
     Set<Server> serverPool;
     Set<Application> applicationPool;
     Set<Service> servicePool;
@@ -140,7 +141,7 @@ public class Simulator {
                 log = true;
             }
         }
-        if(display) {
+        if (display) {
             new Display().display();
             return;
         }
@@ -392,7 +393,7 @@ public class Simulator {
 
     public void runUntil(int desiredTime) {
         PrintWriter pw_C = null;
-        if(log) {
+        if (log) {
             try {
                 pw_C = new PrintWriter("connections.log", "UTF-8");
             } catch (FileNotFoundException | UnsupportedEncodingException e) {
@@ -419,14 +420,15 @@ public class Simulator {
             if (evolveServersWorstToBest) {
                 evolveServersWorstToBestService();
             }
-            relink();
+            //relink();
+            relinkWithNeighborhood();
             older();
             //gd.setGraph(connections);
-            if(pw_C != null) {
+            if (pw_C != null) {
                 String output = "";
-                for(Server server : connections.keySet()) {
+                for (Server server : connections.keySet()) {
                     output += server.toVerboseString(connections) + "=";
-                    for(Application application : connections.get(server)) {
+                    for (Application application : connections.get(server)) {
                         output += application.toVerboseString(connections) + ";";
                     }
                     output += "|";
@@ -530,10 +532,10 @@ public class Simulator {
     }
 
     public void older() {
-        for(Server server : Tools.getAliveServers(connections)) {
+        for (Server server : Tools.getAliveServers(connections)) {
             server.older();
         }
-        for(Application application : Tools.getAliveApplications(connections)) {
+        for (Application application : Tools.getAliveApplications(connections)) {
             application.older();
         }
     }
@@ -780,6 +782,62 @@ public class Simulator {
                 .filter(server -> connections.get(server).isEmpty())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         disconnectedApplications.addAll(Tools.killServers(connections, Tools.getAliveServers(connections), serversToBeRemoved));
+    }
+
+    public void relinkWithNeighborhood() {
+        if (!silentMode) {
+            System.out.println("[" + currentTime + "]RELINK-NEIGHBOOR(" + disconnectedApplications.size() + ")");
+        }
+        List<Application> applicationsToBeRemoved = new ArrayList<>();
+        List<Application> applicationsRelinked = new ArrayList<>();
+        Set<Service> unsatisfiedServices;
+        List<Server> serverList;
+        Iterator<Server> iterServer;
+        Server server;
+        Set<Service> matchingServices;
+        for (Application application : disconnectedApplications) {
+            if (application.getNeighborhood() == null) {
+                application.setNeighborhood(new LinkedHashSet<>());
+            }
+            if (application.getNeighborhood().size() < neighborhoodSize) {
+                Set<Server> neighborhood = new LinkedHashSet<>();
+                neighborhood.addAll(Tools.getProvidingServers(application, connections));
+                if (neighborhood.size() < neighborhoodSize) {
+                    while (neighborhood.size() < neighborhoodSize) {
+                        neighborhood.add(Tools.getRandomElement(Tools.getAliveServers(connections)));
+                    }
+                }
+            } else if (application.getNeighborhood().size() > neighborhoodSize) {
+                System.err.println("NEIGHBORHOOD ERROR : " + application.getNeighborhood().size() + ">" + neighborhoodSize);
+            }
+            unsatisfiedServices = Tools.getUnsatisfiedServices(application, connections);
+            serverList = new ArrayList<>(application.getNeighborhood());
+            Collections.shuffle(serverList, getRandom());
+            iterServer = new LinkedHashSet<>(serverList).iterator();
+            while (!unsatisfiedServices.isEmpty() && iterServer.hasNext()) {
+                server = iterServer.next();
+                matchingServices = Tools.getMatchingServices(unsatisfiedServices, server.getServices());
+                if (matchingServices.size() > 0 && server.canConnect()) {
+                    unsatisfiedServices.removeAll(matchingServices);
+                    if (!connections.containsKey(server)) {
+                        connections.put(server, new LinkedHashSet<>());
+                    }
+                    connections.get(server).add(application);
+                    server.addConnection();
+                }
+            }
+            if (!unsatisfiedServices.isEmpty()) {
+                applicationsToBeRemoved.add(application);
+            } else {
+                applicationsRelinked.add(application);
+            }
+            disconnectedApplications.addAll(applicationsToBeRemoved);
+            disconnectedApplications.removeAll(applicationsRelinked);
+            Set<Server> serversToBeRemoved = Tools.getAliveServers(connections).stream()
+                    .filter(aliveServer -> connections.get(aliveServer).isEmpty())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            disconnectedApplications.addAll(Tools.killServers(connections, Tools.getAliveServers(connections), serversToBeRemoved));
+        }
     }
 
     public String getParametersAsString() {
