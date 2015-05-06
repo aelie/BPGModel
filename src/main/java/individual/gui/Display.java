@@ -83,8 +83,8 @@ public class Display extends JFrame {
 
     List<ActorComponent> connectedTo;
 
-    public Display() {
-        testFile = System.getProperty("user.dir") + File.separator + "connections.log";
+    public Display(String inputFile) {
+        testFile = System.getProperty("user.dir") + File.separator + (inputFile == null ? "connections.log" : inputFile);
         if (!new File(testFile).exists()) {
             System.err.println("File " + testFile + " not found! Exiting...");
             System.exit(-1);
@@ -104,13 +104,13 @@ public class Display extends JFrame {
         jP_display_servers.setLayout(new WrapLayout(FlowLayout.CENTER));
         ((WrapLayout) jP_display_servers.getLayout()).setHgap(1);
         ((WrapLayout) jP_display_servers.getLayout()).setVgap(1);
-        jP_display_servers.setPreferredSize(new Dimension((int) ((screen_width - servicesPanelWidth) / 4.0), screen_height - 150));
+        jP_display_servers.setPreferredSize(new Dimension((int) ((screen_width - servicesPanelWidth) / 3.0), screen_height - 150));
         jP_display_servers.setBorder(BorderFactory.createEtchedBorder());
         jP_display_applications = new JPanel();
         jP_display_applications.setLayout(new WrapLayout(FlowLayout.CENTER));
         ((WrapLayout) jP_display_applications.getLayout()).setHgap(1);
         ((WrapLayout) jP_display_applications.getLayout()).setVgap(1);
-        jP_display_applications.setPreferredSize(new Dimension((int) ((screen_width - servicesPanelWidth) * 3 / 4.0), screen_height - 150));
+        jP_display_applications.setPreferredSize(new Dimension((int) ((screen_width - servicesPanelWidth) * 2 / 3.0), screen_height - 150));
         jP_display_applications.setBorder(BorderFactory.createEtchedBorder());
         jP_display.add(jP_display_servers, BorderLayout.WEST);
         jP_display.add(jP_display_applications, BorderLayout.CENTER);

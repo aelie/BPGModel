@@ -39,7 +39,7 @@ public class Simulator {
     static double generatorLambda = 0.25;
     static double generatorUniform = 0.005;
     static int generatorPoisson = 6;
-    static int neighborhoodSize = 10;
+    static int neighborhoodSize = 20;
     Set<Server> serverPool;
     Set<Application> applicationPool;
     Set<Service> servicePool;
@@ -72,7 +72,7 @@ public class Simulator {
     static int applicationMinimumSize = 1;
     static int poisson = -1;
     static int negexp = -1;
-    static boolean display = false;
+    static String display = null;
     static boolean log = false;
 
     static boolean testRobustness = false;
@@ -134,15 +134,15 @@ public class Simulator {
             if (args[i].equalsIgnoreCase("-poisson") && i < args.length - 1) {
                 poisson = Integer.parseInt(args[i + 1]);
             }
-            if (args[i].equalsIgnoreCase("-display")) {
-                display = true;
+            if (args[i].equalsIgnoreCase("-display") && i < args.length - 1) {
+                display = args[i + 1];
             }
             if (args[i].equalsIgnoreCase("-log")) {
                 log = true;
             }
         }
-        if (display) {
-            new Display().display();
+        if (display != null) {
+            new Display(display).display();
             return;
         }
         if (!evolveServersNeutral && !evolveServersEcology && !evolveAndMutateServersEcology && !evolveApplications && !evolveServersWorstToBest) {
@@ -807,6 +807,7 @@ public class Simulator {
                         neighborhood.add(Tools.getRandomElement(Tools.getAliveServers(connections)));
                     }
                 }
+                application.setNeighborhood(neighborhood);
             } else if (application.getNeighborhood().size() > neighborhoodSize) {
                 System.err.println("NEIGHBORHOOD ERROR : " + application.getNeighborhood().size() + ">" + neighborhoodSize);
             }
@@ -831,13 +832,13 @@ public class Simulator {
             } else {
                 applicationsRelinked.add(application);
             }
-            disconnectedApplications.addAll(applicationsToBeRemoved);
-            disconnectedApplications.removeAll(applicationsRelinked);
-            Set<Server> serversToBeRemoved = Tools.getAliveServers(connections).stream()
-                    .filter(aliveServer -> connections.get(aliveServer).isEmpty())
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
-            disconnectedApplications.addAll(Tools.killServers(connections, Tools.getAliveServers(connections), serversToBeRemoved));
         }
+        disconnectedApplications.addAll(applicationsToBeRemoved);
+        disconnectedApplications.removeAll(applicationsRelinked);
+        Set<Server> serversToBeRemoved = Tools.getAliveServers(connections).stream()
+                .filter(aliveServer -> connections.get(aliveServer).isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        disconnectedApplications.addAll(Tools.killServers(connections, Tools.getAliveServers(connections), serversToBeRemoved));
     }
 
     public String getParametersAsString() {
