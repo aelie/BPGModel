@@ -54,9 +54,9 @@ public class Simulator {
     static int robustnessRuns = 50;
     static int simulationRuns = 50;
     static Map<Integer, Map<Integer, List<Double>>> robustnessRandomShuffleHistory;
-    Map<Integer, Map<Integer, List<Double>>> robustnessRandomForwardHistory;
-    Map<Integer, Map<Integer, List<Double>>> robustnessRandomBackwardHistory;
-    Map<Integer, Map<Integer, List<Double>>> robustnessServiceShuffleHistory;
+    static Map<Integer, Map<Integer, List<Double>>> robustnessRandomForwardHistory;
+    static Map<Integer, Map<Integer, List<Double>>> robustnessRandomBackwardHistory;
+    static Map<Integer, Map<Integer, List<Double>>> robustnessServiceShuffleHistory;
     Map<Integer, Map<String, Double>> costHistory;
     Map<Integer, Set<Server>> serverHistory;
     Map<Integer, Set<Application>> applicationHistory;
@@ -424,18 +424,6 @@ public class Simulator {
             relinkWithNeighborhood();
             older();
             //gd.setGraph(connections);
-            if (pw_C != null) {
-                String output = "";
-                for (Server server : connections.keySet()) {
-                    output += server.toVerboseString(connections) + "=";
-                    for (Application application : connections.get(server)) {
-                        output += application.toVerboseString(connections) + ";";
-                    }
-                    output += "|";
-                }
-                pw_C.println(output);
-                pw_C.flush();
-            }
             currentTime++;
             Map<String, Double> cost = new HashMap<>();
             cost.put("TotalOfferedServices", (double) connections.keySet()
@@ -481,13 +469,48 @@ public class Simulator {
             cost.put("WeighedLinks", linkWeight / totalLinks);
             costHistory.put(currentTime, cost);
             robustnessRandomShuffleHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.RANDOM_EXTINCTION));
-            /*robustnessRandomForwardHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.FORWARD_ORDER, Tools.RANDOM_EXTINCTION));
-            robustnessRandomBackwardHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.BACKWARD_ORDER, Tools.RANDOM_EXTINCTION));
-            robustnessServiceShuffleHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.SERVICE_EXTINCTION));*/
+            robustnessRandomForwardHistory.put(currentTime, Tools.robustnessParallel(connections, 1, Tools.FORWARD_ORDER, Tools.RANDOM_EXTINCTION));
+            robustnessRandomBackwardHistory.put(currentTime, Tools.robustnessParallel(connections, 1, Tools.BACKWARD_ORDER, Tools.RANDOM_EXTINCTION));
+            robustnessServiceShuffleHistory.put(currentTime, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.SERVICE_EXTINCTION));
             serverHistory.put(currentTime, Tools.getAliveServers(connections));
             applicationHistory.put(currentTime, Tools.getAliveApplications(connections));
+
+            if (pw_C != null) {
+                String logOutput = "";
+                for (Server server : connections.keySet()) {
+                    logOutput += server.toVerboseString(connections) + "=";
+                    for (Application application : connections.get(server)) {
+                        logOutput += application.toVerboseString(connections) + ";";
+                    }
+                    logOutput += "|";
+                }
+                SummaryStatistics meanRobustness = new SummaryStatistics();
+                for (List<Double> extinctionSequence : robustnessRandomShuffleHistory.get(currentTime).values()) {
+                    meanRobustness.addValue(extinctionSequence.get(0));
+                }
+                logOutput += meanRobustness.getMean() + "|";
+                meanRobustness = new SummaryStatistics();
+                for (List<Double> extinctionSequence : robustnessRandomForwardHistory.get(currentTime).values()) {
+                    meanRobustness.addValue(extinctionSequence.get(0));
+                }
+                logOutput += meanRobustness.getMean() + "|";
+                meanRobustness = new SummaryStatistics();
+                for (List<Double> extinctionSequence : robustnessRandomBackwardHistory.get(currentTime).values()) {
+                    meanRobustness.addValue(extinctionSequence.get(0));
+                }
+                logOutput += meanRobustness.getMean() + "|";
+                meanRobustness = new SummaryStatistics();
+                for (List<Double> extinctionSequence : robustnessServiceShuffleHistory.get(currentTime).values()) {
+                    meanRobustness.addValue(extinctionSequence.get(0));
+                }
+                logOutput += meanRobustness.getMean();
+                pw_C.println(logOutput);
+                pw_C.flush();
+            }
         }
-        pw_C.close();
+        if (pw_C != null) {
+            pw_C.close();
+        }
     }
 
     public void runSteps(int desiredSteps) {
@@ -786,7 +809,7 @@ public class Simulator {
 
     public void relinkWithNeighborhood() {
         if (!silentMode) {
-            System.out.println("[" + currentTime + "]RELINK-NEIGHBOOR(" + disconnectedApplications.size() + ")");
+            System.out.println("[" + currentTime + "]RELINK-NEIGHBOR(" + disconnectedApplications.size() + ")");
         }
         List<Application> applicationsToBeRemoved = new ArrayList<>();
         List<Application> applicationsRelinked = new ArrayList<>();
@@ -796,7 +819,7 @@ public class Simulator {
         Server server;
         Set<Service> matchingServices;
         for (Application application : disconnectedApplications) {
-            if (application.getNeighborhood() == null) {
+            /*if (application.getNeighborhood() == null) {
                 application.setNeighborhood(new LinkedHashSet<>());
             }
             if (application.getNeighborhood().size() < neighborhoodSize) {
@@ -810,7 +833,13 @@ public class Simulator {
                 application.setNeighborhood(neighborhood);
             } else if (application.getNeighborhood().size() > neighborhoodSize) {
                 System.err.println("NEIGHBORHOOD ERROR : " + application.getNeighborhood().size() + ">" + neighborhoodSize);
+            }*/
+            Set<Server> neighborhood = new LinkedHashSet<>();
+            neighborhood.addAll(Tools.getProvidingServers(application, connections));
+            for (int i = 0; i < neighborhoodSize; i++) {
+                neighborhood.add(Tools.getRandomElement(Tools.getAliveServers(connections)));
             }
+            application.setNeighborhood(neighborhood);
             unsatisfiedServices = Tools.getUnsatisfiedServices(application, connections);
             serverList = new ArrayList<>(application.getNeighborhood());
             Collections.shuffle(serverList, getRandom());

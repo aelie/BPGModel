@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Created by aelie on 17/04/15.
@@ -89,7 +90,11 @@ public class Display extends JFrame {
             System.err.println("File " + testFile + " not found! Exiting...");
             System.exit(-1);
         }
-        preParseInputFile(testFile);
+        if (new File(inputFile).isDirectory()) {
+            preParseInputFileFF(testFile);
+        } else {
+            preParseInputFileAE(testFile);
+        }
         init();
     }
 
@@ -120,17 +125,19 @@ public class Display extends JFrame {
         jP_main.add(jP_display, BorderLayout.CENTER);
         getContentPane().add(jP_main);
         mL_actorComponent = new MouseListener() {
-
+            boolean isLocked = false;
             @Override
             public void mouseClicked(MouseEvent e) {
-                Object source = e.getSource();
+                /*Object source = e.getSource();
                 if (source instanceof ActorComponent) {
                     if (!((ActorComponent) source).isHighlighted()) {
                         displayLinks((ActorComponent) source);
                     } else {
                         displayLinks(null);
                     }
-                }
+                }*/
+                isLocked = !isLocked;
+                System.out.println(isLocked);
             }
 
             @Override
@@ -146,8 +153,10 @@ public class Display extends JFrame {
             public void mouseEntered(MouseEvent e) {
                 Object source = e.getSource();
                 if (source instanceof ActorComponent) {
-                    displayLinks((ActorComponent) source);
-                    displayActor((ActorComponent) source);
+                    if(!isLocked) {
+                        displayLinks((ActorComponent) source);
+                        displayActor((ActorComponent) source);
+                    }
                 }
             }
 
@@ -155,8 +164,10 @@ public class Display extends JFrame {
             public void mouseExited(MouseEvent e) {
                 Object source = e.getSource();
                 if (source instanceof ActorComponent) {
-                    displayLinks(null);
-                    displayActor(null);
+                    if(!isLocked) {
+                        displayLinks(null);
+                        displayActor(null);
+                    }
                 }
             }
         };
@@ -183,9 +194,7 @@ public class Display extends JFrame {
         JScrollPane jSP_services = new JScrollPane(jL_services);
         List<String> orderedServiceNames = new ArrayList<>(serviceNames);
         Collections.sort(orderedServiceNames, (o1, o2) -> Integer.parseInt(o1.replaceAll("[^0-9]+", "")) - Integer.parseInt(o2.replaceAll("[^0-9]+", "")));
-        for (String service : orderedServiceNames) {
-            ((DefaultListModel<String>) jL_services.getModel()).addElement(service);
-        }
+        orderedServiceNames.forEach(((DefaultListModel<String>) jL_services.getModel())::addElement);
         jP_right.setLayout(new BorderLayout());
         jP_right.add(new JLabel("Services"), BorderLayout.NORTH);
         jP_right.add(new JLabel("name (demand): connection"), BorderLayout.SOUTH);
@@ -318,12 +327,12 @@ public class Display extends JFrame {
             displayDead = jCB_dead.isSelected();
             if (displayDead) {
                 componentBaseSize = smallComponentSize;
-                jP_display_servers.setPreferredSize(new Dimension((int) (screen_width * 3 / 4.0) - 120, screen_height - 150));
-                jP_display_applications.setPreferredSize(new Dimension((int) (screen_width / 4.0) - 120, screen_height - 150));
+                jP_display_servers.setPreferredSize(new Dimension((int) (screen_width * 3 / 4.0) - servicesPanelWidth, screen_height - 150));
+                jP_display_applications.setPreferredSize(new Dimension((int) (screen_width / 4.0) - servicesPanelWidth, screen_height - 150));
             } else {
                 componentBaseSize = bigComponentSize;
-                jP_display_servers.setPreferredSize(new Dimension((int) (screen_width / 4.0) - 120, screen_height - 150));
-                jP_display_applications.setPreferredSize(new Dimension((int) (screen_width * 3 / 4.0) - 120, screen_height - 150));
+                jP_display_servers.setPreferredSize(new Dimension((int) (screen_width / 4.0) - servicesPanelWidth, screen_height - 150));
+                jP_display_applications.setPreferredSize(new Dimension((int) (screen_width * 3 / 4.0) - servicesPanelWidth, screen_height - 150));
             }
             setGraph(currentStep);
         });
@@ -350,8 +359,8 @@ public class Display extends JFrame {
         setVisible(true);
     }
 
-    public void preParseInputFile(String inputFile) {
-        System.out.println("Parsing log file...");
+    public void preParseInputFileAE(String inputFile) {
+        System.out.println("Parsing AE log file...");
         serverNames = new LinkedHashSet<>();
         applicationNames = new LinkedHashSet<>();
         serviceNames = new LinkedHashSet<>();
@@ -366,9 +375,10 @@ public class Display extends JFrame {
                 graphHistory.put(stepCounter, new HashMap<>());
                 serverHistory.put(stepCounter, new ArrayList<>());
                 applicationHistory.put(stepCounter, new ArrayList<>());
-                String[] keys = line.split("\\|");
-                maxSimultaneousServers = Math.max(keys.length, maxSimultaneousServers);
-                for (String key : keys) {
+                String[] serversRaw = line.split("\\|");
+                double robustness = Double.parseDouble(serversRaw[serversRaw.length - 1]);
+                maxSimultaneousServers = Math.max(serversRaw.length - 1, maxSimultaneousServers);
+                for (String key : Arrays.asList(serversRaw).subList(0, serversRaw.length - 1)) {
                     String server = key.split("=")[0];
                     String applications = key.split("=")[1];
                     serverNames.add(server.split("/")[0]);
@@ -385,7 +395,7 @@ public class Display extends JFrame {
                     for (String application : applications.split(";")) {
                         FakeApplication fakeApplication = new FakeApplication(application.split("/")[0], Integer.parseInt(application.split("/")[1]),
                                 Integer.parseInt(application.split("/")[2]), Integer.parseInt(application.split("/")[3]),
-                                Arrays.asList(application.split("/")).subList(4, application.split("/").length));
+                                Arrays.asList(application.split("/")).subList(4, application.split("/").length), new ArrayList<>());
                         applicationHistory.get(stepCounter).add(fakeApplication);
                         graphHistory.get(stepCounter).get(fakeServer).add(fakeApplication);
                         applicationNames.add(application.split("/")[0]);
@@ -406,6 +416,100 @@ public class Display extends JFrame {
         System.out.println("MaxSize: " + maxServerSize + "/" + maxApplicationSize);
         stepNumber = stepCounter;
         buildSituations();
+    }
+
+    public void preParseInputFileFF(String inputFolder) {
+        System.out.println("Parsing FF log file...");
+        serverNames = new LinkedHashSet<>();
+        applicationNames = new LinkedHashSet<>();
+        serviceNames = new LinkedHashSet<>();
+        graphHistory = new HashMap<>();
+        serverHistory = new HashMap<>();
+        applicationHistory = new HashMap<>();
+        int fileStep;
+        try {
+            for (File inputFile : Arrays.asList(new File(inputFolder).listFiles()).stream()
+                    .filter(file -> !file.isDirectory())
+                    .collect(Collectors.toList())) {
+                fileStep = Integer.parseInt(inputFile.getName().split("_")[2]);
+                graphHistory.put(fileStep, new HashMap<>());
+                serverHistory.put(fileStep, new ArrayList<>());
+                applicationHistory.put(fileStep, new ArrayList<>());
+                List<FakeServer> currentServers = new ArrayList<>();
+                BufferedReader br = Files.newBufferedReader(inputFile.toPath());
+                String line;
+                while ((line = br.readLine()) != null && !line.equalsIgnoreCase("PLATFORMS")) {
+
+                }
+                //reading platforms
+                while (!(line = br.readLine()).equalsIgnoreCase("APPLICATIONS")) {
+                    if(line.length() > 0) {
+                        String server = line;
+                        String services = br.readLine();
+                        serverNames.add(server.split(";")[0]);
+                        FakeServer fakeServer = new FakeServer(server.split(";")[0], 0,
+                                Integer.parseInt(server.split(";")[1]), Integer.parseInt(server.split(";")[2]), fileStep,
+                                Arrays.asList(services.substring(1, services.length() - 1).split(",")));
+                        serverHistory.get(fileStep).add(fakeServer);
+                        currentServers.add(fakeServer);
+                        graphHistory.get(fileStep).put(fakeServer, new ArrayList<>());
+                        maxServerGeneration = Math.max(0, maxServerGeneration);
+                        maxServerConnections = Math.max(Integer.parseInt(server.split(";")[1]), maxServerConnections);
+                        maxServerSize = Math.max(fakeServer.services.size(), maxServerSize);
+                        serviceNames.addAll(fakeServer.services);
+                        maxSimultaneousApplications = Math.max(0, maxSimultaneousApplications);
+                    }
+                }
+                //reading applications
+                while ((line = br.readLine()) != null) {
+                    if(line.length() > 0) {
+                        String application = line;
+                        String services = br.readLine();
+                        String servers = br.readLine();
+                        String neighbors = br.readLine();
+                        FakeApplication fakeApplication = new FakeApplication(application.split(";")[0], 0,
+                                servers.substring(1, servers.length() - 2).split("\\s").length, fileStep,
+                                Arrays.asList(services.substring(1, services.length() - 1).split(",")),
+                                Arrays.asList(neighbors.substring(1, neighbors.length() - 2).split("\\s")).stream()
+                                        .map(neighborName -> (FakeServer) findActor(neighborName, currentServers))
+                                        .collect(Collectors.toList()));
+                        applicationHistory.get(fileStep).add(fakeApplication);
+                        for (String server : servers.substring(1, servers.length() - 2).split("\\s")) {
+                            /*for (FakeServer fakeServer : graphHistory.get(fileStep).keySet()) {
+                                if (fakeServer.name.equalsIgnoreCase(server)) {
+                                    graphHistory.get(fileStep).get(fakeServer).add(fakeApplication);
+                                }
+                            }*/
+                            graphHistory.get(fileStep)
+                                    .get(findActor(server, new ArrayList<>(graphHistory.get(fileStep).keySet())))
+                                    .add(fakeApplication);
+                        }
+                        applicationNames.add(fakeApplication.name);
+                        maxApplicationGeneration = Math.max(fakeApplication.generation, maxApplicationGeneration);
+                        maxApplicationConnections = Math.max(fakeApplication.connections, maxApplicationConnections);
+                        maxApplicationSize = Math.max(fakeApplication.services.size(), maxApplicationSize);
+                        serviceNames.addAll(fakeApplication.services);
+                    }
+                }
+                stepNumber = Math.max(fileStep + 1, stepNumber);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        System.out.println("Names: " + serverNames.size() + "/" + applicationNames.size() + "/" + serviceNames.size());
+        System.out.println("MaxSimult: " + maxSimultaneousServers + "/" + maxSimultaneousApplications);
+        System.out.println("MaxGen: " + maxServerGeneration + "/" + maxApplicationGeneration);
+        System.out.println("MaxSize: " + maxServerSize + "/" + maxApplicationSize);
+        buildSituations();
+    }
+
+    public FakeActor findActor(String name, List actors) {
+        for (Object fakeActor : actors) {
+            if (((FakeActor)fakeActor).name.equalsIgnoreCase(name)) {
+                return (FakeActor)fakeActor;
+            }
+        }
+        return null;
     }
 
     public void buildSituations() {
@@ -491,12 +595,10 @@ public class Display extends JFrame {
         Map<String, Double> servicesDemand = new HashMap<>();
         for (String service : serviceNames) {
             servicesDemand.put(service, 0.0);
-            for (ActorComponent actorComponent : applicationSituationHistory.get(step)) {
-                if (actorComponent.getServices().contains(service)) {
-                    servicesDemand.put(service, servicesDemand.get(service) + 1);
-                }
-            }
-            servicesDemand.put(service, servicesDemand.get(service) / (double)applicationSituationHistory.get(step).size());
+            applicationSituationHistory.get(step).stream().filter(actorComponent -> actorComponent.getServices().contains(service)).forEach(actorComponent ->
+                            servicesDemand.put(service, servicesDemand.get(service) + 1)
+            );
+            servicesDemand.put(service, servicesDemand.get(service) / (double) applicationSituationHistory.get(step).size());
         }
         ((BoldListCellRenderer) jL_services.getCellRenderer()).setItemsDemand(servicesDemand);
         jP_display_servers.removeAll();
@@ -504,7 +606,9 @@ public class Display extends JFrame {
         jP_main.updateUI();
         int aliveCounter = 0;
         for (ActorComponent actorComponent : serverSituationHistory.get(step)) {
-            actorComponent.addMouseListener(mL_actorComponent);
+            if(actorComponent.getMouseListeners().length == 0) {
+                actorComponent.addMouseListener(mL_actorComponent);
+            }
             if (displayDead) {
                 jP_display_servers.add(actorComponent);
             } else {
@@ -517,7 +621,9 @@ public class Display extends JFrame {
         jL_servers_alive_value.setText(aliveCounter + "/" + serverNames.size() + "[" + serverNames.size() / stepNumber + "]");
         aliveCounter = 0;
         for (ActorComponent actorComponent : applicationSituationHistory.get(step)) {
-            actorComponent.addMouseListener(mL_actorComponent);
+            if(actorComponent.getMouseListeners().length == 0) {
+                actorComponent.addMouseListener(mL_actorComponent);
+            }
             if (displayDead) {
                 jP_display_applications.add(actorComponent);
             } else {
@@ -547,12 +653,10 @@ public class Display extends JFrame {
             Map<String, Double> satisfactionMap = new HashMap<>();
             for (String service : actorComponent.getServices()) {
                 satisfactionMap.put(service, 0.0);
-                for (ActorComponent connected : connectedTo) {
-                    if (connected.getServices().contains(service)) {
-                        satisfactionMap.put(service, satisfactionMap.get(service) + 1);
-                    }
-                }
-                satisfactionMap.put(service, satisfactionMap.get(service) / (double)connectedTo.size());
+                connectedTo.stream().filter(connected -> connected.getServices().contains(service)).forEach(connected ->
+                                satisfactionMap.put(service, satisfactionMap.get(service) + 1)
+                );
+                satisfactionMap.put(service, satisfactionMap.get(service) / (double) connectedTo.size());
             }
             ((BoldListCellRenderer) jL_services.getCellRenderer()).setBoldItems(satisfactionMap);
             jL_services.updateUI();
@@ -593,12 +697,23 @@ public class Display extends JFrame {
             for (ActorComponent linkedComponent : connectedTo) {
                 linkedComponent.setHighlighted(true);
             }
+            //neighborhood
+            if(actorComponent.getType() == ActorComponent.APPLICATION) {
+                for (FakeServer fakeServer : ((FakeApplication)actorComponent.getFakeActor()).neighborhood) {
+                    for (ActorComponent displayedServer : serverSituationHistory.get(currentStep)) {
+                        if (fakeServer.name.equals(displayedServer.getFakeActor().name)) {
+                            displayedServer.setNeighbor(true);
+                        }
+                    }
+                }
+            }
         } else {
             for (ActorComponent displayedApplication : applicationSituationHistory.get(currentStep)) {
                 displayedApplication.setHighlighted(false);
             }
             for (ActorComponent displayedServer : serverSituationHistory.get(currentStep)) {
                 displayedServer.setHighlighted(false);
+                displayedServer.setNeighbor(false);
             }
         }
         jP_display.updateUI();
@@ -628,7 +743,7 @@ class BoldListCellRenderer extends DefaultListCellRenderer {
                         + " (" + demand.substring(0, Math.min(5, demand.length())) + ")");
             }
             if (boldItems.keySet().contains(value)) {
-                item.setBackground(new Color((int)(boldItems.get(value) * 255), 0, 0));
+                item.setBackground(new Color((int) (boldItems.get(value) * 255), 0, 0));
                 item.setForeground(Color.white);
                 String demand = Double.toString(boldItems.get(value));
                 ((BoldListCellRenderer) item).setText(((BoldListCellRenderer) item).getText()
@@ -653,10 +768,15 @@ class FakeActor {
         this.age = age;
         this.services = services;
     }
+
+    @Override
+    public String toString() {
+        return name;
+    }
 }
 
 class FakeServer extends FakeActor {
-    int maxConnections;
+    public int maxConnections;
 
     public FakeServer(String name, int generation, int maxConnections, int connections, int age, List<String> services) {
         super(name, generation, connections, age, services);
@@ -665,7 +785,10 @@ class FakeServer extends FakeActor {
 }
 
 class FakeApplication extends FakeActor {
-    public FakeApplication(String name, int generation, int connections, int age, List<String> services) {
+    List<FakeServer> neighborhood;
+
+    public FakeApplication(String name, int generation, int connections, int age, List<String> services, List<FakeServer> neighborhood) {
         super(name, generation, connections, age, services);
+        this.neighborhood = neighborhood;
     }
 }

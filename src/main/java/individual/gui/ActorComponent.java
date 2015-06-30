@@ -31,6 +31,7 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
     java.util.List<String> services;
     int state;
     boolean highlighted = false;
+    boolean neighbor = false;
 
     public ActorComponent(FakeActor fakeActor, int state) {
         super();
@@ -99,6 +100,14 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
         return highlighted;
     }
 
+    public boolean isNeighbor() {
+        return neighbor;
+    }
+
+    public void setNeighbor(boolean neighbor) {
+        this.neighbor = neighbor;
+    }
+
     public FakeActor getFakeActor() {
         return fakeActor;
     }
@@ -110,7 +119,18 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
         super.paintComponent(g);
         int ageColorComponent = (int) (age / (double) Display.stepNumber * 150);
         Color backgroundAgeColor = new Color(255 - ageColorComponent, 255 - ageColorComponent, 255 - ageColorComponent);
-        Color serverGenerationColor = new Color((int) (255 - generation / (double) Display.maxServerGeneration * 255), 0, 0);
+        Color serverGenerationColor;
+        if (Display.maxServerGeneration != 0) {
+            serverGenerationColor = new Color((int) (255 * (1 - generation / (double) Display.maxServerGeneration)), 0, 0);
+        } else {
+            serverGenerationColor = new Color(255, 0, 0);
+        }
+        Color applicationGenerationColor;
+        if (Display.maxApplicationGeneration != 0) {
+            applicationGenerationColor = new Color(0, (int) (255 * (1 - generation / (double) Display.maxApplicationGeneration)), 0);
+        } else {
+            applicationGenerationColor = new Color(0, 255, 0);
+        }
         if (state == LIMBO) {
             backgroundAgeColor = Color.magenta;
         } else if (state == DEAD) {
@@ -120,15 +140,21 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
         g.fillRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
         if (highlighted) {
             g.setColor(Color.black);
-            ((Graphics2D)g).setStroke(new BasicStroke(10));
+            ((Graphics2D) g).setStroke(new BasicStroke(10));
             g.drawRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
-            ((Graphics2D)g).setStroke(new BasicStroke(1));
+            ((Graphics2D) g).setStroke(new BasicStroke(1));
+        }
+        if (neighbor) {
+            g.setColor(Color.yellow);
+            ((Graphics2D) g).setStroke(new BasicStroke(10));
+            g.drawRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
+            ((Graphics2D) g).setStroke(new BasicStroke(1));
         }
         if (type == ActorComponent.SERVER) {
             g.setColor(serverGenerationColor);
             componentSize = (int) (services.size() / (double) Display.maxServerSize * (Display.componentBaseSize - offset * 2));
         } else if (type == ActorComponent.APPLICATION) {
-            g.setColor(new Color(0, (int) (255 - generation / (double) Display.maxApplicationGeneration * 255), 0));
+            g.setColor(applicationGenerationColor);
             componentSize = (int) (services.size() / (double) Display.maxApplicationSize * (Display.componentBaseSize - offset * 2));
         }
         if (shape == ActorComponent.CIRCLE) {
