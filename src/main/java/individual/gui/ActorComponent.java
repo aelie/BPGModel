@@ -33,7 +33,7 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
     boolean highlighted = false;
     boolean neighbor = false;
 
-    public ActorComponent(FakeActor fakeActor, int state) {
+    public ActorComponent(FakeActor fakeActor, int state, int shape) {
         super();
         this.fakeActor = fakeActor;
         this.name = fakeActor.name;
@@ -44,6 +44,7 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
         this.age = fakeActor.age;
         this.services = fakeActor.services;
         this.state = state;
+        this.shape = shape;
     }
 
     @Override
@@ -138,24 +139,12 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
         }
         g.setColor(backgroundAgeColor);
         g.fillRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
-        if (highlighted) {
-            g.setColor(Color.black);
-            ((Graphics2D) g).setStroke(new BasicStroke(10));
-            g.drawRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
-            ((Graphics2D) g).setStroke(new BasicStroke(1));
-        }
-        if (neighbor) {
-            g.setColor(Color.yellow);
-            ((Graphics2D) g).setStroke(new BasicStroke(10));
-            g.drawRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
-            ((Graphics2D) g).setStroke(new BasicStroke(1));
-        }
         if (type == ActorComponent.SERVER) {
             g.setColor(serverGenerationColor);
-            componentSize = (int) (services.size() / (double) Display.maxServerSize * (Display.componentBaseSize - offset * 2));
+            componentSize = (int) ((4 * services.size() / (double) Display.maxServerSize + 1) / 5f * (Display.componentBaseSize - offset * 2));
         } else if (type == ActorComponent.APPLICATION) {
             g.setColor(applicationGenerationColor);
-            componentSize = (int) (services.size() / (double) Display.maxApplicationSize * (Display.componentBaseSize - offset * 2));
+            componentSize = (int) ((4 * services.size() / (double) Display.maxApplicationSize + 1) / 5f * (Display.componentBaseSize - offset * 2));
         }
         if (shape == ActorComponent.CIRCLE) {
             int arc = (int) ((1 - actorConnections / (double) maxConnections) * 360);
@@ -186,6 +175,24 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
                         componentSize, componentSize);
             }
         }
+        if (highlighted && !neighbor) {
+            g.setColor(Color.black);
+            ((Graphics2D) g).setStroke(new BasicStroke(10));
+            g.drawRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
+        } else if (neighbor && !highlighted) {
+            g.setColor(Color.yellow);
+            ((Graphics2D) g).setStroke(new BasicStroke(10));
+            g.drawRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
+        } else if (highlighted && neighbor) {
+            g.setColor(Color.black);
+            ((Graphics2D) g).setStroke(new BasicStroke(10));
+            g.drawRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
+            g.setColor(Color.yellow);
+            ((Graphics2D) g).setStroke(new BasicStroke(10, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f,
+                    new float[]{Display.componentBaseSize / 3f, Display.componentBaseSize * 2 / 3f}, 0.0f));
+            g.drawRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
+        }
+        ((Graphics2D) g).setStroke(new BasicStroke(1));
     }
 
     @Override

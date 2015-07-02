@@ -128,16 +128,7 @@ public class Display extends JFrame {
             boolean isLocked = false;
             @Override
             public void mouseClicked(MouseEvent e) {
-                /*Object source = e.getSource();
-                if (source instanceof ActorComponent) {
-                    if (!((ActorComponent) source).isHighlighted()) {
-                        displayLinks((ActorComponent) source);
-                    } else {
-                        displayLinks(null);
-                    }
-                }*/
                 isLocked = !isLocked;
-                System.out.println(isLocked);
             }
 
             @Override
@@ -359,32 +350,50 @@ public class Display extends JFrame {
         setVisible(true);
     }
 
+    /**
+     * parser for log files from AE's BPG simulation
+     * @param inputFile the log file
+     */
     public void preParseInputFileAE(String inputFile) {
         System.out.println("Parsing AE log file...");
+        // gathering lots of data
         serverNames = new LinkedHashSet<>();
         applicationNames = new LinkedHashSet<>();
         serviceNames = new LinkedHashSet<>();
-        graphHistory = new HashMap<>();
-        serverHistory = new HashMap<>();
-        applicationHistory = new HashMap<>();
+        // connected applications, by servers, by simulation step
+        graphHistory = new HashMap<>(); // Map<Integer, Map<FakeServer, List<FakeApplication>>>
+        // servers, by simulation step
+        serverHistory = new HashMap<>(); // Map<Integer, List<FakeServer>>
+        // applications, by simulation step
+        applicationHistory = new HashMap<>(); // Map<Integer, List<FakeApplication>>
         int stepCounter = 0;
         try {
             BufferedReader br = Files.newBufferedReader(new File(inputFile).toPath());
             String line;
             while ((line = br.readLine()) != null) {
+                // init the maps
                 graphHistory.put(stepCounter, new HashMap<>());
                 serverHistory.put(stepCounter, new ArrayList<>());
                 applicationHistory.put(stepCounter, new ArrayList<>());
+                // splitting the servers
                 String[] serversRaw = line.split("\\|");
+                // grabbing robustness from last position
                 double robustness = Double.parseDouble(serversRaw[serversRaw.length - 1]);
+                // stat
                 maxSimultaneousServers = Math.max(serversRaw.length - 1, maxSimultaneousServers);
-                for (String key : Arrays.asList(serversRaw).subList(0, serversRaw.length - 1)) {
-                    String server = key.split("=")[0];
-                    String applications = key.split("=")[1];
+                // for all server full String
+                for (String serverRaw : Arrays.asList(serversRaw).subList(0, serversRaw.length - 1)) {
+                    // grabbing the server part
+                    String server = serverRaw.split("=")[0];
+                    // grabbing the application part
+                    String applications = serverRaw.split("=")[1];
+                    // server name
                     serverNames.add(server.split("/")[0]);
+                    // building the server object
                     FakeServer fakeServer = new FakeServer(server.split("/")[0], Integer.parseInt(server.split("/")[1]),
                             Integer.parseInt(server.split("/")[2]), Integer.parseInt(server.split("/")[3]), Integer.parseInt(server.split("/")[4]),
                             Arrays.asList(server.split("/")).subList(5, server.split("/").length));
+                    // stats and tools
                     serverHistory.get(stepCounter).add(fakeServer);
                     graphHistory.get(stepCounter).put(fakeServer, new ArrayList<>());
                     maxServerGeneration = Math.max(Integer.parseInt(server.split("/")[1]), maxServerGeneration);
@@ -392,10 +401,13 @@ public class Display extends JFrame {
                     maxServerSize = Math.max(Arrays.asList(server.split("/")).size(), maxServerSize);
                     serviceNames.addAll(Arrays.asList(server.split("/")).subList(5, server.split("/").length));
                     maxSimultaneousApplications = Math.max(applications.split(";").length, maxSimultaneousApplications);
+                    // applications
                     for (String application : applications.split(";")) {
+                        // building the application object
                         FakeApplication fakeApplication = new FakeApplication(application.split("/")[0], Integer.parseInt(application.split("/")[1]),
                                 Integer.parseInt(application.split("/")[2]), Integer.parseInt(application.split("/")[3]),
                                 Arrays.asList(application.split("/")).subList(4, application.split("/").length), new ArrayList<>());
+                        // stats and tools
                         applicationHistory.get(stepCounter).add(fakeApplication);
                         graphHistory.get(stepCounter).get(fakeServer).add(fakeApplication);
                         applicationNames.add(application.split("/")[0]);
@@ -418,6 +430,10 @@ public class Display extends JFrame {
         buildSituations();
     }
 
+    /**
+     * parser for files from FF's BPG simulation
+     * @param inputFolder
+     */
     public void preParseInputFileFF(String inputFolder) {
         System.out.println("Parsing FF log file...");
         serverNames = new LinkedHashSet<>();
@@ -428,9 +444,11 @@ public class Display extends JFrame {
         applicationHistory = new HashMap<>();
         int fileStep;
         try {
+            // for all files in the input folder
             for (File inputFile : Arrays.asList(new File(inputFolder).listFiles()).stream()
                     .filter(file -> !file.isDirectory())
                     .collect(Collectors.toList())) {
+                // grabbing the step from the file name
                 fileStep = Integer.parseInt(inputFile.getName().split("_")[2]);
                 graphHistory.put(fileStep, new HashMap<>());
                 serverHistory.put(fileStep, new ArrayList<>());
@@ -438,6 +456,7 @@ public class Display extends JFrame {
                 List<FakeServer> currentServers = new ArrayList<>();
                 BufferedReader br = Files.newBufferedReader(inputFile.toPath());
                 String line;
+                // skipping lines until "PLATFORMS"
                 while ((line = br.readLine()) != null && !line.equalsIgnoreCase("PLATFORMS")) {
 
                 }
@@ -446,10 +465,12 @@ public class Display extends JFrame {
                     if(line.length() > 0) {
                         String server = line;
                         String services = br.readLine();
-                        serverNames.add(server.split(";")[0]);
-                        FakeServer fakeServer = new FakeServer(server.split(";")[0], 0,
+                        serverNames.add(server.split(";")[0].trim());
+                        FakeServer fakeServer = new FakeServer(server.split(";")[0].trim(), 0,
                                 Integer.parseInt(server.split(";")[1]), Integer.parseInt(server.split(";")[2]), fileStep,
-                                Arrays.asList(services.substring(1, services.length() - 1).split(",")));
+                                Arrays.asList(services.substring(1, services.length() - 1).split(",")).stream()
+                                        .map(String::trim)
+                                        .collect(Collectors.toList()));
                         serverHistory.get(fileStep).add(fakeServer);
                         currentServers.add(fakeServer);
                         graphHistory.get(fileStep).put(fakeServer, new ArrayList<>());
@@ -467,19 +488,16 @@ public class Display extends JFrame {
                         String services = br.readLine();
                         String servers = br.readLine();
                         String neighbors = br.readLine();
-                        FakeApplication fakeApplication = new FakeApplication(application.split(";")[0], 0,
+                        FakeApplication fakeApplication = new FakeApplication(application.split(";")[0].trim(), 0,
                                 servers.substring(1, servers.length() - 2).split("\\s").length, fileStep,
-                                Arrays.asList(services.substring(1, services.length() - 1).split(",")),
+                                Arrays.asList(services.substring(1, services.length() - 1).split(",")).stream()
+                                        .map(String::trim)
+                                        .collect(Collectors.toList()),
                                 Arrays.asList(neighbors.substring(1, neighbors.length() - 2).split("\\s")).stream()
                                         .map(neighborName -> (FakeServer) findActor(neighborName, currentServers))
                                         .collect(Collectors.toList()));
                         applicationHistory.get(fileStep).add(fakeApplication);
                         for (String server : servers.substring(1, servers.length() - 2).split("\\s")) {
-                            /*for (FakeServer fakeServer : graphHistory.get(fileStep).keySet()) {
-                                if (fakeServer.name.equalsIgnoreCase(server)) {
-                                    graphHistory.get(fileStep).get(fakeServer).add(fakeApplication);
-                                }
-                            }*/
                             graphHistory.get(fileStep)
                                     .get(findActor(server, new ArrayList<>(graphHistory.get(fileStep).keySet())))
                                     .add(fakeApplication);
@@ -530,7 +548,7 @@ public class Display extends JFrame {
             for (String serverName : serverNames) {
                 if ((livingServer = (FakeServer) findInStep(serverName, serverHistory, step)) != null) {
                     state = ActorComponent.ALIVE;
-                    serverSituationStep.add(new ActorComponent(livingServer, state));
+                    serverSituationStep.add(new ActorComponent(livingServer, state, ActorComponent.CIRCLE));
                 } /*else {
                     counter = stepStartResearch;
                     while (livingServer == null && counter < stepNumber) {
@@ -554,7 +572,7 @@ public class Display extends JFrame {
             for (String applicationName : applicationNames) {
                 if ((livingApplication = (FakeApplication) findInStep(applicationName, applicationHistory, step)) != null) {
                     state = ActorComponent.ALIVE;
-                    applicationSituationStep.add(new ActorComponent(livingApplication, state));
+                    applicationSituationStep.add(new ActorComponent(livingApplication, state, ActorComponent.SQUARE));
                 } /*else {
                     counter = stepStartResearch;
                     while (livingApplication == null && counter < stepNumber) {

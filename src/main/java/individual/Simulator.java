@@ -39,7 +39,7 @@ public class Simulator {
     static double generatorLambda = 0.25;
     static double generatorUniform = 0.005;
     static int generatorPoisson = 6;
-    static int neighborhoodSize = 20;
+    static int neighborhoodSize = 10;
     Set<Server> serverPool;
     Set<Application> applicationPool;
     Set<Service> servicePool;
@@ -282,11 +282,11 @@ public class Simulator {
         robustnessRandomShuffleHistory = new HashMap<>();
         robustnessRandomShuffleHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.RANDOM_EXTINCTION));
         robustnessRandomForwardHistory = new HashMap<>();
-        //robustnessRandomForwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.FORWARD_ORDER, Tools.RANDOM_EXTINCTION));
+        robustnessRandomForwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.FORWARD_ORDER, Tools.RANDOM_EXTINCTION));
         robustnessRandomBackwardHistory = new HashMap<>();
-        //robustnessRandomBackwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.BACKWARD_ORDER, Tools.RANDOM_EXTINCTION));
+        robustnessRandomBackwardHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.BACKWARD_ORDER, Tools.RANDOM_EXTINCTION));
         robustnessServiceShuffleHistory = new HashMap<>();
-        //robustnessServiceShuffleHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.SERVICE_EXTINCTION));
+        robustnessServiceShuffleHistory.put(0, Tools.robustnessParallel(connections, robustnessRuns, Tools.SHUFFLE_ORDER, Tools.SERVICE_EXTINCTION));
         costHistory = new HashMap<>();
         serverHistory = new HashMap<>();
         applicationHistory = new HashMap<>();
