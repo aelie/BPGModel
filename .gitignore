@@ -9,3 +9,4 @@ pom.xml
 connections.log
 connections_neighbor_10.log
 *.log
+data/**
