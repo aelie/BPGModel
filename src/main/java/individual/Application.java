@@ -85,6 +85,9 @@ public class Application implements Actor, Serializable {
         return name
                 + "/" + generation
                 + "/" + Tools.getProvidingServers(this, connections).size()
+                + "/" + (neighborhood != null ? (neighborhood.stream()
+                .map(Server::getName)
+                .collect(Collectors.joining("_"))) : "null")
                 + "/" + age
                 + "/" + services.stream()
                 .map(Service::getName)

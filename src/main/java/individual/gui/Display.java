@@ -126,8 +126,10 @@ public class Display extends JFrame {
         getContentPane().add(jP_main);
         mL_actorComponent = new MouseListener() {
             boolean isLocked = false;
+
             @Override
             public void mouseClicked(MouseEvent e) {
+                //TODO: on click, replay connection history ?
                 isLocked = !isLocked;
             }
 
@@ -144,7 +146,7 @@ public class Display extends JFrame {
             public void mouseEntered(MouseEvent e) {
                 Object source = e.getSource();
                 if (source instanceof ActorComponent) {
-                    if(!isLocked) {
+                    if (!isLocked) {
                         displayLinks((ActorComponent) source);
                         displayActor((ActorComponent) source);
                     }
@@ -155,7 +157,7 @@ public class Display extends JFrame {
             public void mouseExited(MouseEvent e) {
                 Object source = e.getSource();
                 if (source instanceof ActorComponent) {
-                    if(!isLocked) {
+                    if (!isLocked) {
                         displayLinks(null);
                         displayActor(null);
                     }
@@ -352,6 +354,7 @@ public class Display extends JFrame {
 
     /**
      * parser for log files from AE's BPG simulation
+     *
      * @param inputFile the log file
      */
     public void preParseInputFileAE(String inputFile) {
@@ -375,14 +378,18 @@ public class Display extends JFrame {
                 graphHistory.put(stepCounter, new HashMap<>());
                 serverHistory.put(stepCounter, new ArrayList<>());
                 applicationHistory.put(stepCounter, new ArrayList<>());
+                List<FakeServer> currentServers = new ArrayList<>();
                 // splitting the servers
                 String[] serversRaw = line.split("\\|");
                 // grabbing robustness from last position
-                double robustness = Double.parseDouble(serversRaw[serversRaw.length - 1]);
+                double robustnessRandomShuffle = Double.parseDouble(serversRaw[serversRaw.length - 4]);
+                double robustnessRandomForward = Double.parseDouble(serversRaw[serversRaw.length - 3]);
+                double robustnessRandomBackward = Double.parseDouble(serversRaw[serversRaw.length - 2]);
+                double robustnessServiceShuffle = Double.parseDouble(serversRaw[serversRaw.length - 1]);
                 // stat
-                maxSimultaneousServers = Math.max(serversRaw.length - 1, maxSimultaneousServers);
+                maxSimultaneousServers = Math.max(serversRaw.length - 4, maxSimultaneousServers);
                 // for all server full String
-                for (String serverRaw : Arrays.asList(serversRaw).subList(0, serversRaw.length - 1)) {
+                for (String serverRaw : Arrays.asList(serversRaw).subList(0, serversRaw.length - 4)) {
                     // grabbing the server part
                     String server = serverRaw.split("=")[0];
                     // grabbing the application part
@@ -395,6 +402,7 @@ public class Display extends JFrame {
                             Arrays.asList(server.split("/")).subList(5, server.split("/").length));
                     // stats and tools
                     serverHistory.get(stepCounter).add(fakeServer);
+                    currentServers.add(fakeServer);
                     graphHistory.get(stepCounter).put(fakeServer, new ArrayList<>());
                     maxServerGeneration = Math.max(Integer.parseInt(server.split("/")[1]), maxServerGeneration);
                     maxServerConnections = Math.max(Integer.parseInt(server.split("/")[2]), maxServerConnections);
@@ -405,8 +413,11 @@ public class Display extends JFrame {
                     for (String application : applications.split(";")) {
                         // building the application object
                         FakeApplication fakeApplication = new FakeApplication(application.split("/")[0], Integer.parseInt(application.split("/")[1]),
-                                Integer.parseInt(application.split("/")[2]), Integer.parseInt(application.split("/")[3]),
-                                Arrays.asList(application.split("/")).subList(4, application.split("/").length), new ArrayList<>());
+                                Integer.parseInt(application.split("/")[2]), Integer.parseInt(application.split("/")[4]),
+                                Arrays.asList(application.split("/")).subList(5, application.split("/").length),
+                                Arrays.asList(application.split("/")[3].split("_")).stream()
+                                        .map(neighborName -> (FakeServer) findActor(neighborName, currentServers))
+                                        .collect(Collectors.toList()));
                         // stats and tools
                         applicationHistory.get(stepCounter).add(fakeApplication);
                         graphHistory.get(stepCounter).get(fakeServer).add(fakeApplication);
@@ -432,6 +443,7 @@ public class Display extends JFrame {
 
     /**
      * parser for files from FF's BPG simulation
+     *
      * @param inputFolder
      */
     public void preParseInputFileFF(String inputFolder) {
@@ -462,7 +474,7 @@ public class Display extends JFrame {
                 }
                 //reading platforms
                 while (!(line = br.readLine()).equalsIgnoreCase("APPLICATIONS")) {
-                    if(line.length() > 0) {
+                    if (line.length() > 0) {
                         String server = line;
                         String services = br.readLine();
                         serverNames.add(server.split(";")[0].trim());
@@ -483,7 +495,7 @@ public class Display extends JFrame {
                 }
                 //reading applications
                 while ((line = br.readLine()) != null) {
-                    if(line.length() > 0) {
+                    if (line.length() > 0) {
                         String application = line;
                         String services = br.readLine();
                         String servers = br.readLine();
@@ -523,8 +535,8 @@ public class Display extends JFrame {
 
     public FakeActor findActor(String name, List actors) {
         for (Object fakeActor : actors) {
-            if (((FakeActor)fakeActor).name.equalsIgnoreCase(name)) {
-                return (FakeActor)fakeActor;
+            if (((FakeActor) fakeActor).name.equalsIgnoreCase(name)) {
+                return (FakeActor) fakeActor;
             }
         }
         return null;
@@ -606,6 +618,11 @@ public class Display extends JFrame {
         return null;
     }
 
+    public List<Set<ActorComponent>> createConnectionHistory(ActorComponent actor) {
+        //TODO
+        return null;
+    }
+
     public void setGraph(int step) {
         currentStep = step;
         jTF_step.setText(Integer.toString(currentStep));
@@ -624,7 +641,7 @@ public class Display extends JFrame {
         jP_main.updateUI();
         int aliveCounter = 0;
         for (ActorComponent actorComponent : serverSituationHistory.get(step)) {
-            if(actorComponent.getMouseListeners().length == 0) {
+            if (actorComponent.getMouseListeners().length == 0) {
                 actorComponent.addMouseListener(mL_actorComponent);
             }
             if (displayDead) {
@@ -639,7 +656,7 @@ public class Display extends JFrame {
         jL_servers_alive_value.setText(aliveCounter + "/" + serverNames.size() + "[" + serverNames.size() / stepNumber + "]");
         aliveCounter = 0;
         for (ActorComponent actorComponent : applicationSituationHistory.get(step)) {
-            if(actorComponent.getMouseListeners().length == 0) {
+            if (actorComponent.getMouseListeners().length == 0) {
                 actorComponent.addMouseListener(mL_actorComponent);
             }
             if (displayDead) {
@@ -716,8 +733,8 @@ public class Display extends JFrame {
                 linkedComponent.setHighlighted(true);
             }
             //neighborhood
-            if(actorComponent.getType() == ActorComponent.APPLICATION) {
-                for (FakeServer fakeServer : ((FakeApplication)actorComponent.getFakeActor()).neighborhood) {
+            if (actorComponent.getType() == ActorComponent.APPLICATION) {
+                for (FakeServer fakeServer : ((FakeApplication) actorComponent.getFakeActor()).neighborhood) {
                     for (ActorComponent displayedServer : serverSituationHistory.get(currentStep)) {
                         if (fakeServer.name.equals(displayedServer.getFakeActor().name)) {
                             displayedServer.setNeighbor(true);
