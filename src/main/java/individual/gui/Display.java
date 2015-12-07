@@ -22,8 +22,10 @@ public class Display extends JFrame {
 
     String testFile;
 
-    JScrollPane jSP_display;
+    JScrollPane jSP_matrix;
     JPanel jP_main;
+    JTabbedPane jTP_display;
+    JPanelSquares jPS_matrix;
     JPanel jP_display;
     JPanel jP_display_servers;
     JPanel jP_display_applications;
@@ -84,6 +86,8 @@ public class Display extends JFrame {
 
     List<ActorComponent> connectedTo;
 
+    JPanel[][] matrixPanels;
+
     public Display(String inputFile) {
         testFile = System.getProperty("user.dir") + File.separator + (inputFile == null ? "connections.log" : inputFile);
         if (!new File(testFile).exists()) {
@@ -103,6 +107,7 @@ public class Display extends JFrame {
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         jP_main = new JPanel();
         jP_main.setLayout(new BorderLayout());
+        jTP_display = new JTabbedPane();
         jP_display = new JPanel();
         jP_display.setLayout(new BorderLayout());
         jP_display_servers = new JPanel();
@@ -119,10 +124,15 @@ public class Display extends JFrame {
         jP_display_applications.setBorder(BorderFactory.createEtchedBorder());
         jP_display.add(jP_display_servers, BorderLayout.WEST);
         jP_display.add(jP_display_applications, BorderLayout.CENTER);
+        jPS_matrix = new JPanelSquares();
+        jPS_matrix.setSize(jP_display.getSize());
         jP_main.add(buildTopPanel(), BorderLayout.NORTH);
         jP_main.add(buildServicesPanel(), BorderLayout.EAST);
-        //jSP_display = new JScrollPane(jP_display);
-        jP_main.add(jP_display, BorderLayout.CENTER);
+        //jSP_matrix = new JScrollPane(jPS_matrix);
+        jTP_display.addTab("Dual", jP_display);
+        jTP_display.addTab("Matrix", jPS_matrix);
+        jTP_display.setSelectedIndex(1);
+        jP_main.add(jTP_display, BorderLayout.CENTER);
         getContentPane().add(jP_main);
         mL_actorComponent = new MouseListener() {
             boolean isLocked = false;
@@ -307,7 +317,7 @@ public class Display extends JFrame {
             if (!isPlaying) {
                 jB_play.setText("||");
                 isPlaying = true;
-                playEvolution();
+                playEvolution(100);
             } else {
                 jB_play.setText("|>");
                 timer.stop();
@@ -340,9 +350,9 @@ public class Display extends JFrame {
         return jP_slider;
     }
 
-    public void playEvolution() {
-        ActionListener taskPerformer = evt -> setGraph(currentStep < stepNumber ? ++currentStep : stepNumber);
-        timer = new Timer(1000, taskPerformer);
+    public void playEvolution(int stepTime) {
+        ActionListener taskPerformer = evt -> setGraph(currentStep < stepNumber - 1 ? ++currentStep : stepNumber - 1);
+        timer = new Timer(stepTime, taskPerformer);
         timer.start();
     }
 
@@ -425,7 +435,7 @@ public class Display extends JFrame {
                         maxApplicationGeneration = Math.max(Integer.parseInt(application.split("/")[1]), maxApplicationGeneration);
                         maxApplicationConnections = Math.max(Integer.parseInt(application.split("/")[2]), maxApplicationConnections);
                         maxApplicationSize = Math.max(Arrays.asList(application.split("/")).size(), maxApplicationSize);
-                        serviceNames.addAll(Arrays.asList(application.split("/")).subList(4, application.split("/").length));
+                        serviceNames.addAll(Arrays.asList(application.split("/")).subList(5, application.split("/").length));
                     }
                 }
                 stepCounter++;
@@ -439,6 +449,17 @@ public class Display extends JFrame {
         System.out.println("MaxSize: " + maxServerSize + "/" + maxApplicationSize);
         stepNumber = stepCounter;
         buildSituations();
+    }
+
+    public void preParseInputFileJSON(String inputFolder) {
+        System.out.println("Parsing JSON log file...");
+        serverNames = new LinkedHashSet<>();
+        applicationNames = new LinkedHashSet<>();
+        serviceNames = new LinkedHashSet<>();
+        graphHistory = new HashMap<>();
+        serverHistory = new HashMap<>();
+        applicationHistory = new HashMap<>();
+
     }
 
     /**
@@ -669,6 +690,19 @@ public class Display extends JFrame {
             aliveCounter += actorComponent.getState() == ActorComponent.ALIVE ? 1 : 0;
         }
         jL_applications_alive_value.setText(aliveCounter + "/" + applicationNames.size() + "[" + applicationNames.size() / stepNumber + "]");
+
+        jPS_matrix.setSize(applicationHistory.get(step).size(), serverHistory.get(step).size());
+        for(int i = 0; i < applicationHistory.get(step).size(); i++) {
+            for(int j = 0; j < serverHistory.get(step).size(); j++) {
+                int value = 0;
+                for(String serverService : serverHistory.get(step).get(j).services) {
+                    if(applicationHistory.get(step).get(i).services.contains(serverService)) {
+                        value++;
+                    }
+                }
+                jPS_matrix.addSquare(i, j, (double)value / (double)maxApplicationSize);
+            }
+        }
     }
 
     public void displayActor(ActorComponent actorComponent) {
@@ -736,8 +770,10 @@ public class Display extends JFrame {
             if (actorComponent.getType() == ActorComponent.APPLICATION) {
                 for (FakeServer fakeServer : ((FakeApplication) actorComponent.getFakeActor()).neighborhood) {
                     for (ActorComponent displayedServer : serverSituationHistory.get(currentStep)) {
-                        if (fakeServer.name.equals(displayedServer.getFakeActor().name)) {
-                            displayedServer.setNeighbor(true);
+                        if(fakeServer != null) {
+                            if (fakeServer.name.equals(displayedServer.getFakeActor().name)) {
+                                displayedServer.setNeighbor(true);
+                            }
                         }
                     }
                 }
@@ -825,5 +861,42 @@ class FakeApplication extends FakeActor {
     public FakeApplication(String name, int generation, int connections, int age, List<String> services, List<FakeServer> neighborhood) {
         super(name, generation, connections, age, services);
         this.neighborhood = neighborhood;
+    }
+}
+
+class JPanelSquares extends JPanel {
+    private static final int PREF_W = 2;
+    private static final int PREF_H = PREF_W;
+    int size = 6;
+    int padding = 0;
+    int totalPaddingX = 10;
+    int totalPaddingY = 50;
+    private double[][] squares;
+
+    public void setSize(int width, int height) {
+        squares = new double[width][height];
+    }
+
+    public void addSquare(int x, int y, double intensity) {
+        squares[x][y] = intensity;
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+        return this.getParent().getSize();//new Dimension(PREF_W, PREF_H);
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2 = (Graphics2D) g;
+        for (int i = 0; i < squares.length; i++) {
+            for(int j = 0; j < squares[0].length; j++) {
+                g2.setColor(new Color((int)(squares[i][j] * 255), (int)(squares[i][j] * 255), (int)(squares[i][j] * 255)));
+                g2.fillRect(totalPaddingX + i * (size + padding), totalPaddingY + j * (size + padding), size, size);
+                g2.setColor(Color.black);
+                g2.draw(new Rectangle(totalPaddingX + i * (size + padding), totalPaddingY + j * (size + padding), size, size));
+            }
+        }
     }
 }
