@@ -7,9 +7,7 @@ import java.awt.*;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.List;
@@ -36,6 +34,7 @@ public class Display extends JFrame {
     JButton jB_next;
     JButton jB_end;
     JButton jB_play;
+    JButton jB_export;
     JTextField jTF_step;
     JCheckBox jCB_dead;
     JPanel jP_info;
@@ -324,6 +323,8 @@ public class Display extends JFrame {
                 isPlaying = false;
             }
         });
+        jB_export = new JButton("Export Matrix");
+        jB_export.addActionListener(e -> exportMatrix("matrix.csv"));
         jCB_dead = new JCheckBox();
         jCB_dead.setText("Display dead actors");
         jCB_dead.addActionListener(e -> {
@@ -346,6 +347,7 @@ public class Display extends JFrame {
         jP_slider.add(jB_next);
         jP_slider.add(jB_end);
         jP_slider.add(jB_play);
+        jP_slider.add(jB_export);
         //jP_slider.add(jCB_dead);
         return jP_slider;
     }
@@ -360,6 +362,32 @@ public class Display extends JFrame {
         setSize(new Dimension(screen_width, screen_height));
         setGraph(0);
         setVisible(true);
+    }
+
+    public void exportMatrix(String outputFile) {
+        try {
+            PrintWriter pw = new PrintWriter(outputFile);
+            pw.println("\"Step\",\"Server\",\"Application\",\"Links\"");
+            for(int step = 0; step < stepNumber; step++) {
+                for(int i = 0; i < applicationHistory.get(step).size(); i++) {
+                    for(int j = 0; j < serverHistory.get(step).size(); j++) {
+                        int value = 0;
+                        for(String serverService : serverHistory.get(step).get(j).services) {
+                            if(applicationHistory.get(step).get(i).services.contains(serverService)) {
+                                value++;
+                            }
+                        }
+                        pw.println("\"" + step +
+                                "\",\"" + serverHistory.get(step).get(j).name +
+                                "\",\"" + applicationHistory.get(step).get(i).name +
+                                "\",\"" + value + "\"");
+                    }
+                }
+            }
+            pw.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
