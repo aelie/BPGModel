@@ -898,7 +898,8 @@ public class Display extends JFrame {
                 } else {
                     result
                             [referenceApplicationsByPosition.get(orderedApplications.get(i).name)]
-                            [referenceServersByPosition.get(orderedServers.get(j).name)] = 0;
+                            [referenceServersByPosition.get(orderedServers.get(j).name)] =
+                            -(double) (orderedApplications.get(i).getCommonServices(orderedServers.get(j)).size()) / (double) max;
                 }
             }
         }
@@ -1111,8 +1112,13 @@ class JPanelMatrix extends JPanel {
         Graphics2D g2 = (Graphics2D) g;
         for (int i = 0; i < matrix.length; i++) {
             for (int j = 0; j < matrix[0].length; j++) {
-                int rgbValue = (int) (matrix[i][j] == 0 ? 0 : matrix[i][j] * 200 + 55);
-                g2.setColor(new Color(rgbValue, rgbValue, rgbValue));
+                if(matrix[i][j] >= 0) {
+                    int rgbValue = (int) (matrix[i][j] == 0 ? 0 : matrix[i][j] * 200 + 55);
+                    g2.setColor(new Color(rgbValue, rgbValue, rgbValue));
+                } else {
+                    int rgbValue = (int) (-matrix[i][j] < 0.1 ? 0 : -matrix[i][j] * 128 + 55);
+                    g2.setColor(new Color(rgbValue, 0, 0));
+                }
                 g2.fillRect(totalPaddingX + i * (size + padding), totalPaddingY + j * (size + padding), size, size);
                 g2.setColor(Color.black);
                 g2.draw(new Rectangle(totalPaddingX + i * (size + padding), totalPaddingY + j * (size + padding), size, size));
