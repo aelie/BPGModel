@@ -33,7 +33,6 @@ public class Display extends JFrame {
 
     JPanel testP = new JPanel();
 
-    JScrollPane jSP_matrix;
     JPanel jP_main;
     JTabbedPane jTP_display;
     JPanel jP_matrixchart;
@@ -100,11 +99,13 @@ public class Display extends JFrame {
 
     Map<String, Integer> referenceServersByPosition;
     Map<String, Integer> referenceApplicationsByPosition;
+    Map<Integer, Double[][]> matrixByStep;
 
     List<ActorComponent> connectedTo;
 
     Map<Integer, Double> robustnessByStep;
     DefaultTableXYDataset datasetRobustness;
+    Map<Integer, Map<Double, Integer>> linksByWeightByStep;
 
     boolean componentLocked = false;
     ActorComponent currentSelectedComponent;
@@ -120,6 +121,8 @@ public class Display extends JFrame {
         } else {
             preParseInputFileAE(testFile);
         }
+        buildMatrixByStep(stepNumber - 1);
+        buildWeightByStep();
         buildRobustnessByStep();
         init();
     }
@@ -228,13 +231,6 @@ public class Display extends JFrame {
         for (int i = step; i < stepNumber; i++) {
             datasetRobustness.getSeries(0).addOrUpdate(new Integer(i), new Integer(-1));
         }
-        /*if(datasetRobustness.getSeries(0).getItemCount() > 0) {
-            for (int i = step; i < stepNumber; i++) {
-                if (datasetRobustness.getSeries(0).getDataItem(i) != null) {
-                    datasetRobustness.getSeries(0).remove(new Integer(i));
-                }
-            }
-        }*/
     }
 
     public JFreeChart buildChart() {
@@ -272,10 +268,29 @@ public class Display extends JFrame {
     }
 
     public void buildRobustnessByStep() {
+        System.out.println("Building robustness data...");
         robustnessByStep = new HashMap<>();
         Map<Integer, Map<Server, Set<Application>>> connectionsByStep = buildConnectionsByStep();
         for (Integer step : connectionsByStep.keySet()) {
             robustnessByStep.put(step, Tools.robustnessRandom(connectionsByStep.get(step), Tools.SHUFFLE_ORDER).get(0));
+        }
+    }
+
+    public void buildWeightByStep() {
+        System.out.println("Building weight data...");
+        linksByWeightByStep = new HashMap<>();
+        for (int step = 0; step < stepNumber; step++) {
+            linksByWeightByStep.put(step, new HashMap<>());
+            for (int i = 0; i < matrixByStep.get(step).length; i++) {
+                for (int j = 0; j < matrixByStep.get(step)[0].length; j++) {
+                    if (matrixByStep.get(step)[i][j] > 0) {
+                        if (!linksByWeightByStep.get(step).containsKey(matrixByStep.get(step)[i][j])) {
+                            linksByWeightByStep.get(step).put(matrixByStep.get(step)[i][j], 0);
+                        }
+                        linksByWeightByStep.get(step).put(matrixByStep.get(step)[i][j], linksByWeightByStep.get(step).get(matrixByStep.get(step)[i][j]) + 1);
+                    }
+                }
+            }
         }
     }
 
@@ -828,14 +843,14 @@ public class Display extends JFrame {
         jL_applications_alive_value.setText(aliveCounter + "/" + applicationNames.size() + "[" + applicationNames.size() / stepNumber + "]");
 
         jPS_matrix.setMatrixSize(applicationHistory.get(step).size(), serverHistory.get(step).size());
-        jPS_matrix.setMatrix(getMatrix(step, stepNumber - 1));
+        jPS_matrix.setMatrix(matrixByStep.get(step));
         updateDataset(step);
         if (componentLocked) {
             displayComponent(currentSelectedComponent);
         }
     }
 
-    public double[][] getMatrix(int step, int referenceStep) {
+    public Double[][] getMatrix(int step, int referenceStep) {
         if (referenceServersByPosition == null || referenceApplicationsByPosition == null) {
             referenceServersByPosition = new HashMap<>();
             referenceApplicationsByPosition = new HashMap<>();
@@ -864,14 +879,14 @@ public class Display extends JFrame {
                 referenceApplicationsByPosition.put(referenceOrderedApplications.get(i).name, i);
             }
         }
-        double[][] result = new double[applicationHistory.get(step).size()][serverHistory.get(step).size()];
-        int max = 0;
+        Double[][] result = new Double[applicationHistory.get(step).size()][serverHistory.get(step).size()];
+        /*int max = 0;
         for (FakeServer server : serverHistory.get(step)) {
             int value = applicationHistory.get(step).stream()
                     .mapToInt(application -> application.getCommonServices(server).size())
                     .max().getAsInt();
             max = value > max ? value : max;
-        }
+        }*/
         Map<FakeServer, Integer> serversWeight = new HashMap<>();
         Map<FakeApplication, Integer> applicationsWeight = new HashMap<>();
         for (FakeServer server : serverHistory.get(step)) {
@@ -894,23 +909,24 @@ public class Display extends JFrame {
                     result
                             [referenceApplicationsByPosition.get(orderedApplications.get(i).name)]
                             [referenceServersByPosition.get(orderedServers.get(j).name)] =
-                            (double) (orderedApplications.get(i).getCommonServices(orderedServers.get(j)).size()) / (double) max;
+                            (double) (orderedApplications.get(i).getCommonServices(orderedServers.get(j)).size());// / (double) max;
                 } else {
                     result
                             [referenceApplicationsByPosition.get(orderedApplications.get(i).name)]
                             [referenceServersByPosition.get(orderedServers.get(j).name)] =
-                            -(double) (orderedApplications.get(i).getCommonServices(orderedServers.get(j)).size()) / (double) max;
+                            -(double) (orderedApplications.get(i).getCommonServices(orderedServers.get(j)).size());// / (double) max;
                 }
             }
         }
         return result;
     }
 
-    public FakeServer getFakeServerByName(String name, int step) {
-        return graphHistory.get(step).keySet().stream()
-                .filter(server -> server.name.equals(name))
-                .findFirst()
-                .get();
+    public void buildMatrixByStep(int referenceStep) {
+        System.out.println("Building link matrix...");
+        matrixByStep = new HashMap<>();
+        for (int step = 0; step < stepNumber; step++) {
+            matrixByStep.put(step, getMatrix(step, referenceStep));
+        }
     }
 
     public void displayActor(ActorComponent actorComponent) {
@@ -1083,21 +1099,21 @@ class JPanelMatrix extends JPanel {
     int padding = 0;
     int totalPaddingX = 10;
     int totalPaddingY = 10;
-    private double[][] matrix;
+    private Double[][] matrix;
     int matrixWidth;
     int matrixHeight;
 
     public void setMatrixSize(int width, int height) {
         matrixWidth = width;
         matrixHeight = height;
-        matrix = new double[matrixWidth][matrixHeight];
+        matrix = new Double[matrixWidth][matrixHeight];
     }
 
     public void setCell(int x, int y, double intensity) {
         matrix[x][y] = intensity;
     }
 
-    public void setMatrix(double[][] matrix) {
+    public void setMatrix(Double[][] matrix) {
         this.matrix = matrix;
     }
 
@@ -1110,13 +1126,20 @@ class JPanelMatrix extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
+        double max = 0;
         for (int i = 0; i < matrix.length; i++) {
             for (int j = 0; j < matrix[0].length; j++) {
-                if(matrix[i][j] >= 0) {
-                    int rgbValue = (int) (matrix[i][j] == 0 ? 0 : matrix[i][j] * 200 + 55);
+                max = matrix[i][j] > max ? matrix[i][j] : max;
+            }
+        }
+        for (int i = 0; i < matrix.length; i++) {
+            for (int j = 0; j < matrix[0].length; j++) {
+                double value = matrix[i][j] / max;
+                if (value >= 0) {
+                    int rgbValue = (int) (value == 0 ? 0 : value * 200 + 55);
                     g2.setColor(new Color(rgbValue, rgbValue, rgbValue));
                 } else {
-                    int rgbValue = (int) (-matrix[i][j] < 0.1 ? 0 : -matrix[i][j] * 128 + 55);
+                    int rgbValue = (int) (-value < 0.00001 ? 0 : -value * 128 + 55);
                     g2.setColor(new Color(rgbValue, 0, 0));
                 }
                 g2.fillRect(totalPaddingX + i * (size + padding), totalPaddingY + j * (size + padding), size, size);
