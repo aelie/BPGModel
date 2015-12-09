@@ -1,5 +1,16 @@
 package individual.gui;
 
+import individual.Application;
+import individual.Server;
+import individual.Service;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.data.xy.DefaultTableXYDataset;
+import org.jfree.data.xy.XYSeries;
+import tools.Tools;
+
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.plaf.metal.MetalSliderUI;
@@ -20,10 +31,14 @@ public class Display extends JFrame {
 
     String testFile;
 
+    JPanel testP = new JPanel();
+
     JScrollPane jSP_matrix;
     JPanel jP_main;
     JTabbedPane jTP_display;
+    JPanel jP_matrixchart;
     JPanelSquares jPS_matrix;
+    ChartPanel CP_robustness;
     JPanel jP_display;
     JPanel jP_display_servers;
     JPanel jP_display_applications;
@@ -85,7 +100,11 @@ public class Display extends JFrame {
 
     List<ActorComponent> connectedTo;
 
-    JPanel[][] matrixPanels;
+    Map<Integer, Double> robustnessByStep;
+    DefaultTableXYDataset datasetRobustness;
+
+    boolean componentLocked = false;
+    ActorComponent currentSelectedComponent;
 
     public Display(String inputFile) {
         testFile = System.getProperty("user.dir") + File.separator + (inputFile == null ? "connections.log" : inputFile);
@@ -98,10 +117,12 @@ public class Display extends JFrame {
         } else {
             preParseInputFileAE(testFile);
         }
+        buildRobustnessByStep();
         init();
     }
 
     public void init() {
+        testP.setBackground(Color.red);
         setTitle(stepNumber + " steps");
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         jP_main = new JPanel();
@@ -124,22 +145,33 @@ public class Display extends JFrame {
         jP_display.add(jP_display_servers, BorderLayout.WEST);
         jP_display.add(jP_display_applications, BorderLayout.CENTER);
         jPS_matrix = new JPanelSquares();
-        jPS_matrix.setSize(jP_display.getSize());
+        CP_robustness = new ChartPanel(buildChart());
+        jP_matrixchart = new JPanel();
+        jP_matrixchart.setLayout(new BorderLayout());
+        jP_matrixchart.add(jPS_matrix, BorderLayout.NORTH);
+        jP_matrixchart.add(CP_robustness, BorderLayout.CENTER);
         jP_main.add(buildTopPanel(), BorderLayout.NORTH);
         jP_main.add(buildServicesPanel(), BorderLayout.EAST);
         //jSP_matrix = new JScrollPane(jPS_matrix);
         jTP_display.addTab("Dual", jP_display);
-        jTP_display.addTab("Matrix", jPS_matrix);
+        jTP_display.addTab("Matrix", /*jPS_matrix*/jP_matrixchart);
         jTP_display.setSelectedIndex(1);
         jP_main.add(jTP_display, BorderLayout.CENTER);
         getContentPane().add(jP_main);
         mL_actorComponent = new MouseListener() {
-            boolean isLocked = false;
 
             @Override
             public void mouseClicked(MouseEvent e) {
-                //TODO: on click, replay connection history ?
-                isLocked = !isLocked;
+                Object source = e.getSource();
+                if (source instanceof ActorComponent) {
+                    if (!componentLocked) {
+                        componentLocked = true;
+                        currentSelectedComponent = (ActorComponent) source;
+                    } else {
+                        componentLocked = false;
+                        currentSelectedComponent = null;
+                    }
+                }
             }
 
             @Override
@@ -155,7 +187,7 @@ public class Display extends JFrame {
             public void mouseEntered(MouseEvent e) {
                 Object source = e.getSource();
                 if (source instanceof ActorComponent) {
-                    if (!isLocked) {
+                    if (!componentLocked) {
                         displayLinks((ActorComponent) source);
                         displayActor((ActorComponent) source);
                     }
@@ -166,13 +198,73 @@ public class Display extends JFrame {
             public void mouseExited(MouseEvent e) {
                 Object source = e.getSource();
                 if (source instanceof ActorComponent) {
-                    if (!isLocked) {
+                    if (!componentLocked) {
                         displayLinks(null);
                         displayActor(null);
                     }
                 }
             }
         };
+    }
+
+    public void displayComponent(ActorComponent actor) {
+        if (componentLocked) {
+            displayLinks(actor);
+            displayActor(actor);
+        }
+    }
+
+    public void updateDataset(int step) {
+        if(datasetRobustness == null) {
+            datasetRobustness = new DefaultTableXYDataset();
+            datasetRobustness.addSeries(new XYSeries("Robustness", false, false));
+        }
+        //datasetRobustness.getSeries(0).clear();
+        for (int i = 0; i < step; i++) {
+            datasetRobustness.getSeries(0).addOrUpdate(new Integer(step), robustnessByStep.get(i));
+        }
+    }
+
+    public JFreeChart buildChart() {
+        if(datasetRobustness == null) {
+            updateDataset(0);
+        }
+        JFreeChart chart = ChartFactory.createTimeSeriesChart("Robustness", "Steps", "Robustness", datasetRobustness, false, false, false);
+        ((XYPlot)(chart.getPlot())).getDomainAxis().setRange(0, stepNumber);
+        ((XYPlot)(chart.getPlot())).getRangeAxis().setRange(0, 1);
+        return chart;
+    }
+
+    public Map<Integer, Map<Server, Set<Application>>> buildConnectionsByStep() {
+        Map<Integer, Map<Server, Set<Application>>> result = new HashMap<>();
+        for (Integer step : graphHistory.keySet()) {
+            result.put(step, new LinkedHashMap<>());
+            for (FakeServer fakeServer : graphHistory.get(step).keySet()) {
+                Server tmp = new Server(fakeServer.name,
+                        fakeServer.generation,
+                        new LinkedHashSet<>(fakeServer.services.stream()
+                                .map(name -> new Service(name, 0, 0))
+                                .collect(Collectors.toList())), fakeServer.maxConnections);
+                result.get(step).put(tmp, new LinkedHashSet<>());
+                for (FakeApplication fakeApplication : graphHistory.get(step).get(fakeServer)) {
+                    result.get(step).get(tmp).add(
+                            new Application(fakeApplication.name,
+                                    fakeApplication.generation,
+                                    new LinkedHashSet<>(fakeApplication.services.stream()
+                                            .map(name -> new Service(name, 0, 0))
+                                            .collect(Collectors.toList()))));
+                }
+            }
+        }
+        return result;
+    }
+
+    public void buildRobustnessByStep() {
+        robustnessByStep = new HashMap<>();
+        Map<Integer, Map<Server, Set<Application>>> connectionsByStep = buildConnectionsByStep();
+        for (Integer step : connectionsByStep.keySet()) {
+            robustnessByStep.put(step, Tools.robustnessRandom(connectionsByStep.get(step), Tools.SHUFFLE_ORDER).get(0));
+        }
     }
 
     public JPanel buildTopPanel() {
@@ -368,12 +460,12 @@ public class Display extends JFrame {
         try {
             PrintWriter pw = new PrintWriter(outputFile);
             pw.println("\"Step\",\"Server\",\"Application\",\"Links\"");
-            for(int step = 0; step < stepNumber; step++) {
-                for(int i = 0; i < applicationHistory.get(step).size(); i++) {
-                    for(int j = 0; j < serverHistory.get(step).size(); j++) {
+            for (int step = 0; step < stepNumber; step++) {
+                for (int i = 0; i < applicationHistory.get(step).size(); i++) {
+                    for (int j = 0; j < serverHistory.get(step).size(); j++) {
                         int value = 0;
-                        for(String serverService : serverHistory.get(step).get(j).services) {
-                            if(applicationHistory.get(step).get(i).services.contains(serverService)) {
+                        for (String serverService : serverHistory.get(step).get(j).services) {
+                            if (applicationHistory.get(step).get(i).services.contains(serverService)) {
                                 value++;
                             }
                         }
@@ -680,7 +772,7 @@ public class Display extends JFrame {
         for (String service : serviceNames) {
             servicesDemand.put(service, 0.0);
             applicationSituationHistory.get(step).stream().filter(actorComponent -> actorComponent.getServices().contains(service)).forEach(actorComponent ->
-                            servicesDemand.put(service, servicesDemand.get(service) + 1)
+                    servicesDemand.put(service, servicesDemand.get(service) + 1)
             );
             servicesDemand.put(service, servicesDemand.get(service) / (double) applicationSituationHistory.get(step).size());
         }
@@ -689,7 +781,9 @@ public class Display extends JFrame {
         jP_display_applications.removeAll();
         jP_main.updateUI();
         int aliveCounter = 0;
-        for (ActorComponent actorComponent : serverSituationHistory.get(step)) {
+        List<ActorComponent> sortedServers = serverSituationHistory.get(step);
+        Collections.sort(sortedServers, (o1, o2) -> o2.services.size() - o1.services.size());
+        for (ActorComponent actorComponent : sortedServers) {
             if (actorComponent.getMouseListeners().length == 0) {
                 actorComponent.addMouseListener(mL_actorComponent);
             }
@@ -704,7 +798,9 @@ public class Display extends JFrame {
         }
         jL_servers_alive_value.setText(aliveCounter + "/" + serverNames.size() + "[" + serverNames.size() / stepNumber + "]");
         aliveCounter = 0;
-        for (ActorComponent actorComponent : applicationSituationHistory.get(step)) {
+        List<ActorComponent> sortedApplications = applicationSituationHistory.get(step);
+        Collections.sort(sortedApplications, (o1, o2) -> o2.services.size() - o1.services.size());
+        for (ActorComponent actorComponent : sortedApplications) {
             if (actorComponent.getMouseListeners().length == 0) {
                 actorComponent.addMouseListener(mL_actorComponent);
             }
@@ -719,17 +815,36 @@ public class Display extends JFrame {
         }
         jL_applications_alive_value.setText(aliveCounter + "/" + applicationNames.size() + "[" + applicationNames.size() / stepNumber + "]");
 
-        jPS_matrix.setSize(applicationHistory.get(step).size(), serverHistory.get(step).size());
-        for(int i = 0; i < applicationHistory.get(step).size(); i++) {
-            for(int j = 0; j < serverHistory.get(step).size(); j++) {
+        jPS_matrix.setMatrixSize(applicationHistory.get(step).size(), serverHistory.get(step).size());
+        List<FakeApplication> sortedFakeApplications = applicationHistory.get(step);
+        Collections.sort(sortedFakeApplications, (o1, o2) -> o2.services.size() - o1.services.size());
+        List<FakeServer> sortedFakeServers = serverHistory.get(step);
+        Collections.sort(sortedFakeServers, (o1, o2) -> o2.services.size() - o1.services.size());
+        int maxValue = 0;
+        for (int i = 0; i < sortedFakeApplications.size(); i++) {
+            for (int j = 0; j < sortedFakeServers.size(); j++) {
                 int value = 0;
-                for(String serverService : serverHistory.get(step).get(j).services) {
-                    if(applicationHistory.get(step).get(i).services.contains(serverService)) {
+                for (String serverService : sortedFakeServers.get(j).services) {
+                    if (sortedFakeApplications.get(i).services.contains(serverService)) {
                         value++;
                     }
                 }
-                jPS_matrix.addSquare(i, j, (double)value / (double)maxApplicationSize);
+                maxValue = value > maxValue ? value : maxValue;
+                jPS_matrix.setSquare(i, j, (double) value / maxValue);
             }
+        }
+        updateDataset(step);
+        if (componentLocked) {
+            displayComponent(currentSelectedComponent);
+        }
+    }
+
+    public void sortMatrix(int step) {
+        int[][] applicationServerCommonServices = new int[applicationHistory.get(step).size()][serverHistory.get(step).size()];
+        Map<FakeServer, Integer> serversWeight = new HashMap<>();
+        Map<FakeApplication, Integer> applicationsWeight = new HashMap<>();
+        for(FakeServer server : serverHistory.get(step)) {
+                serversWeight.put(server, applicationHistory.get(step).stream().mapToInt(app -> app.getCommonServices(server).size()).sum());
         }
     }
 
@@ -751,7 +866,7 @@ public class Display extends JFrame {
             for (String service : actorComponent.getServices()) {
                 satisfactionMap.put(service, 0.0);
                 connectedTo.stream().filter(connected -> connected.getServices().contains(service)).forEach(connected ->
-                                satisfactionMap.put(service, satisfactionMap.get(service) + 1)
+                        satisfactionMap.put(service, satisfactionMap.get(service) + 1)
                 );
                 satisfactionMap.put(service, satisfactionMap.get(service) / (double) connectedTo.size());
             }
@@ -798,7 +913,7 @@ public class Display extends JFrame {
             if (actorComponent.getType() == ActorComponent.APPLICATION) {
                 for (FakeServer fakeServer : ((FakeApplication) actorComponent.getFakeActor()).neighborhood) {
                     for (ActorComponent displayedServer : serverSituationHistory.get(currentStep)) {
-                        if(fakeServer != null) {
+                        if (fakeServer != null) {
                             if (fakeServer.name.equals(displayedServer.getFakeActor().name)) {
                                 displayedServer.setNeighbor(true);
                             }
@@ -868,6 +983,10 @@ class FakeActor {
         this.services = services;
     }
 
+    public List<String> getCommonServices(FakeActor external) {
+        return services.stream().filter(s -> external.services.contains(s)).collect(Collectors.toList());
+    }
+
     @Override
     public String toString() {
         return name;
@@ -898,20 +1017,24 @@ class JPanelSquares extends JPanel {
     int size = 6;
     int padding = 0;
     int totalPaddingX = 10;
-    int totalPaddingY = 50;
+    int totalPaddingY = 10;
     private double[][] squares;
+    int matrixWidth;
+    int matrixHeight;
 
-    public void setSize(int width, int height) {
-        squares = new double[width][height];
+    public void setMatrixSize(int width, int height) {
+        matrixWidth = width;
+        matrixHeight = height;
+        squares = new double[matrixWidth][matrixHeight];
     }
 
-    public void addSquare(int x, int y, double intensity) {
+    public void setSquare(int x, int y, double intensity) {
         squares[x][y] = intensity;
     }
 
     @Override
     public Dimension getPreferredSize() {
-        return this.getParent().getSize();//new Dimension(PREF_W, PREF_H);
+        return new Dimension(totalPaddingX * 2 + matrixWidth * (size + padding), totalPaddingY * 2 + matrixHeight * (size + padding));//this.getParent().getSize();//new Dimension(PREF_W, PREF_H);
     }
 
     @Override
@@ -919,8 +1042,8 @@ class JPanelSquares extends JPanel {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
         for (int i = 0; i < squares.length; i++) {
-            for(int j = 0; j < squares[0].length; j++) {
-                g2.setColor(new Color((int)(squares[i][j] * 255), (int)(squares[i][j] * 255), (int)(squares[i][j] * 255)));
+            for (int j = 0; j < squares[0].length; j++) {
+                g2.setColor(new Color((int) (squares[i][j] * 255), 0, (int) ((1 - squares[i][j]) * 255)));
                 g2.fillRect(totalPaddingX + i * (size + padding), totalPaddingY + j * (size + padding), size, size);
                 g2.setColor(Color.black);
                 g2.draw(new Rectangle(totalPaddingX + i * (size + padding), totalPaddingY + j * (size + padding), size, size));
