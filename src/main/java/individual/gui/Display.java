@@ -37,7 +37,7 @@ public class Display extends JFrame {
     JPanel jP_main;
     JTabbedPane jTP_display;
     JPanel jP_matrixchart;
-    JPanelSquares jPS_matrix;
+    JPanelMatrix jPS_matrix;
     ChartPanel CP_robustness;
     JPanel jP_display;
     JPanel jP_display_servers;
@@ -98,6 +98,9 @@ public class Display extends JFrame {
     Map<Integer, List<ActorComponent>> serverSituationHistory;
     Map<Integer, List<ActorComponent>> applicationSituationHistory;
 
+    Map<String, Integer> referenceServersByPosition;
+    Map<String, Integer> referenceApplicationsByPosition;
+
     List<ActorComponent> connectedTo;
 
     Map<Integer, Double> robustnessByStep;
@@ -144,7 +147,7 @@ public class Display extends JFrame {
         jP_display_applications.setBorder(BorderFactory.createEtchedBorder());
         jP_display.add(jP_display_servers, BorderLayout.WEST);
         jP_display.add(jP_display_applications, BorderLayout.CENTER);
-        jPS_matrix = new JPanelSquares();
+        jPS_matrix = new JPanelMatrix();
         CP_robustness = new ChartPanel(buildChart());
         jP_matrixchart = new JPanel();
         jP_matrixchart.setLayout(new BorderLayout());
@@ -215,23 +218,32 @@ public class Display extends JFrame {
     }
 
     public void updateDataset(int step) {
-        if(datasetRobustness == null) {
+        if (datasetRobustness == null) {
             datasetRobustness = new DefaultTableXYDataset();
             datasetRobustness.addSeries(new XYSeries("Robustness", false, false));
         }
-        //datasetRobustness.getSeries(0).clear();
         for (int i = 0; i < step; i++) {
-            datasetRobustness.getSeries(0).addOrUpdate(new Integer(step), robustnessByStep.get(i));
+            datasetRobustness.getSeries(0).addOrUpdate(new Integer(i), robustnessByStep.get(i));
         }
+        for (int i = step; i < stepNumber; i++) {
+            datasetRobustness.getSeries(0).addOrUpdate(new Integer(i), new Integer(-1));
+        }
+        /*if(datasetRobustness.getSeries(0).getItemCount() > 0) {
+            for (int i = step; i < stepNumber; i++) {
+                if (datasetRobustness.getSeries(0).getDataItem(i) != null) {
+                    datasetRobustness.getSeries(0).remove(new Integer(i));
+                }
+            }
+        }*/
     }
 
     public JFreeChart buildChart() {
-        if(datasetRobustness == null) {
+        if (datasetRobustness == null) {
             updateDataset(0);
         }
         JFreeChart chart = ChartFactory.createTimeSeriesChart("Robustness", "Steps", "Robustness", datasetRobustness, false, false, false);
-        ((XYPlot)(chart.getPlot())).getDomainAxis().setRange(0, stepNumber);
-        ((XYPlot)(chart.getPlot())).getRangeAxis().setRange(0, 1);
+        ((XYPlot) (chart.getPlot())).getDomainAxis().setRange(0, stepNumber);
+        ((XYPlot) (chart.getPlot())).getRangeAxis().setRange(0, 1);
         return chart;
     }
 
@@ -816,36 +828,88 @@ public class Display extends JFrame {
         jL_applications_alive_value.setText(aliveCounter + "/" + applicationNames.size() + "[" + applicationNames.size() / stepNumber + "]");
 
         jPS_matrix.setMatrixSize(applicationHistory.get(step).size(), serverHistory.get(step).size());
-        List<FakeApplication> sortedFakeApplications = applicationHistory.get(step);
-        Collections.sort(sortedFakeApplications, (o1, o2) -> o2.services.size() - o1.services.size());
-        List<FakeServer> sortedFakeServers = serverHistory.get(step);
-        Collections.sort(sortedFakeServers, (o1, o2) -> o2.services.size() - o1.services.size());
-        int maxValue = 0;
-        for (int i = 0; i < sortedFakeApplications.size(); i++) {
-            for (int j = 0; j < sortedFakeServers.size(); j++) {
-                int value = 0;
-                for (String serverService : sortedFakeServers.get(j).services) {
-                    if (sortedFakeApplications.get(i).services.contains(serverService)) {
-                        value++;
-                    }
-                }
-                maxValue = value > maxValue ? value : maxValue;
-                jPS_matrix.setSquare(i, j, (double) value / maxValue);
-            }
-        }
+        jPS_matrix.setMatrix(getMatrix(step, stepNumber - 1));
         updateDataset(step);
         if (componentLocked) {
             displayComponent(currentSelectedComponent);
         }
     }
 
-    public void sortMatrix(int step) {
-        int[][] applicationServerCommonServices = new int[applicationHistory.get(step).size()][serverHistory.get(step).size()];
+    public double[][] getMatrix(int step, int referenceStep) {
+        if (referenceServersByPosition == null || referenceApplicationsByPosition == null) {
+            referenceServersByPosition = new HashMap<>();
+            referenceApplicationsByPosition = new HashMap<>();
+            List<FakeServer> referenceOrderedServers = new ArrayList<>(serverHistory.get(referenceStep));
+            List<FakeApplication> referenceOrderedApplications = new ArrayList<>(applicationHistory.get(referenceStep));
+            Map<FakeServer, Integer> referenceServersWeight = new HashMap<>();
+            Map<FakeApplication, Integer> referenceApplicationsWeight = new HashMap<>();
+            for (FakeServer server : serverHistory.get(referenceStep)) {
+                referenceServersWeight.put(server, applicationHistory.get(referenceStep).stream()
+                        .filter(application -> graphHistory.get(referenceStep).get(server).contains(application))
+                        .mapToInt(application -> application.getCommonServices(server).size())
+                        .sum());
+            }
+            for (FakeApplication application : applicationHistory.get(referenceStep)) {
+                referenceApplicationsWeight.put(application, serverHistory.get(referenceStep).stream()
+                        .filter(server -> graphHistory.get(referenceStep).get(server).contains(application))
+                        .mapToInt(server -> server.getCommonServices(application).size())
+                        .sum());
+            }
+            Collections.sort(referenceOrderedServers, (s1, s2) -> referenceServersWeight.get(s2) - referenceServersWeight.get(s1));
+            Collections.sort(referenceOrderedApplications, (a1, a2) -> referenceApplicationsWeight.get(a2) - referenceApplicationsWeight.get(a1));
+            for (int i = 0; i < referenceOrderedServers.size(); i++) {
+                referenceServersByPosition.put(referenceOrderedServers.get(i).name, i);
+            }
+            for (int i = 0; i < referenceOrderedApplications.size(); i++) {
+                referenceApplicationsByPosition.put(referenceOrderedApplications.get(i).name, i);
+            }
+        }
+        double[][] result = new double[applicationHistory.get(step).size()][serverHistory.get(step).size()];
+        int max = 0;
+        for (FakeServer server : serverHistory.get(step)) {
+            int value = applicationHistory.get(step).stream()
+                    .mapToInt(application -> application.getCommonServices(server).size())
+                    .max().getAsInt();
+            max = value > max ? value : max;
+        }
         Map<FakeServer, Integer> serversWeight = new HashMap<>();
         Map<FakeApplication, Integer> applicationsWeight = new HashMap<>();
-        for(FakeServer server : serverHistory.get(step)) {
-                serversWeight.put(server, applicationHistory.get(step).stream().mapToInt(app -> app.getCommonServices(server).size()).sum());
+        for (FakeServer server : serverHistory.get(step)) {
+            serversWeight.put(server, applicationHistory.get(step).stream()
+                    .filter(application -> graphHistory.get(step).get(server).contains(application))
+                    .mapToInt(application -> application.getCommonServices(server).size())
+                    .sum());
         }
+        List<FakeServer> orderedServers = new ArrayList<>(serversWeight.keySet());
+        for (FakeApplication application : applicationHistory.get(step)) {
+            applicationsWeight.put(application, serverHistory.get(step).stream()
+                    .filter(server -> graphHistory.get(step).get(server).contains(application))
+                    .mapToInt(server -> server.getCommonServices(application).size())
+                    .sum());
+        }
+        List<FakeApplication> orderedApplications = new ArrayList<>(applicationsWeight.keySet());
+        for (int i = 0; i < orderedApplications.size(); i++) {
+            for (int j = 0; j < orderedServers.size(); j++) {
+                if (graphHistory.get(step).get(orderedServers.get(j)).contains(orderedApplications.get(i))) {
+                    result
+                            [referenceApplicationsByPosition.get(orderedApplications.get(i).name)]
+                            [referenceServersByPosition.get(orderedServers.get(j).name)] =
+                            (double) (orderedApplications.get(i).getCommonServices(orderedServers.get(j)).size()) / (double) max;
+                } else {
+                    result
+                            [referenceApplicationsByPosition.get(orderedApplications.get(i).name)]
+                            [referenceServersByPosition.get(orderedServers.get(j).name)] = 0;
+                }
+            }
+        }
+        return result;
+    }
+
+    public FakeServer getFakeServerByName(String name, int step) {
+        return graphHistory.get(step).keySet().stream()
+                .filter(server -> server.name.equals(name))
+                .findFirst()
+                .get();
     }
 
     public void displayActor(ActorComponent actorComponent) {
@@ -1011,25 +1075,29 @@ class FakeApplication extends FakeActor {
     }
 }
 
-class JPanelSquares extends JPanel {
+class JPanelMatrix extends JPanel {
     private static final int PREF_W = 2;
     private static final int PREF_H = PREF_W;
     int size = 6;
     int padding = 0;
     int totalPaddingX = 10;
     int totalPaddingY = 10;
-    private double[][] squares;
+    private double[][] matrix;
     int matrixWidth;
     int matrixHeight;
 
     public void setMatrixSize(int width, int height) {
         matrixWidth = width;
         matrixHeight = height;
-        squares = new double[matrixWidth][matrixHeight];
+        matrix = new double[matrixWidth][matrixHeight];
     }
 
-    public void setSquare(int x, int y, double intensity) {
-        squares[x][y] = intensity;
+    public void setCell(int x, int y, double intensity) {
+        matrix[x][y] = intensity;
+    }
+
+    public void setMatrix(double[][] matrix) {
+        this.matrix = matrix;
     }
 
     @Override
@@ -1041,9 +1109,10 @@ class JPanelSquares extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
-        for (int i = 0; i < squares.length; i++) {
-            for (int j = 0; j < squares[0].length; j++) {
-                g2.setColor(new Color((int) (squares[i][j] * 255), 0, (int) ((1 - squares[i][j]) * 255)));
+        for (int i = 0; i < matrix.length; i++) {
+            for (int j = 0; j < matrix[0].length; j++) {
+                int rgbValue = (int) (matrix[i][j] == 0 ? 0 : matrix[i][j] * 200 + 55);
+                g2.setColor(new Color(rgbValue, rgbValue, rgbValue));
                 g2.fillRect(totalPaddingX + i * (size + padding), totalPaddingY + j * (size + padding), size, size);
                 g2.setColor(Color.black);
                 g2.draw(new Rectangle(totalPaddingX + i * (size + padding), totalPaddingY + j * (size + padding), size, size));
