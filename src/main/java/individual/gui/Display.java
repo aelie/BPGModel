@@ -9,6 +9,7 @@ import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.data.xy.DefaultTableXYDataset;
 import org.jfree.data.xy.XYSeries;
+import org.jfree.ui.RectangleEdge;
 import tools.Tools;
 
 import javax.swing.*;
@@ -38,6 +39,7 @@ public class Display extends JFrame {
     JPanel jP_matrixchart;
     JPanelMatrix jPS_matrix;
     ChartPanel CP_robustness;
+    ChartPanel CP_weight;
     JPanel jP_display;
     JPanel jP_display_servers;
     JPanel jP_display_applications;
@@ -106,6 +108,8 @@ public class Display extends JFrame {
     Map<Integer, Double> robustnessByStep;
     DefaultTableXYDataset datasetRobustness;
     Map<Integer, Map<Double, Integer>> linksByWeightByStep;
+    DefaultTableXYDataset datasetWeight;
+    Map<Double, XYSeries> weightSeries;
 
     boolean componentLocked = false;
     ActorComponent currentSelectedComponent;
@@ -151,11 +155,13 @@ public class Display extends JFrame {
         jP_display.add(jP_display_servers, BorderLayout.WEST);
         jP_display.add(jP_display_applications, BorderLayout.CENTER);
         jPS_matrix = new JPanelMatrix();
-        CP_robustness = new ChartPanel(buildChart());
+        CP_robustness = new ChartPanel(buildRobustnessChart());
+        CP_weight = new ChartPanel(buildWeightChart());
         jP_matrixchart = new JPanel();
         jP_matrixchart.setLayout(new BorderLayout());
         jP_matrixchart.add(jPS_matrix, BorderLayout.NORTH);
-        jP_matrixchart.add(CP_robustness, BorderLayout.CENTER);
+        jP_matrixchart.add(CP_robustness, BorderLayout.WEST);
+        jP_matrixchart.add(CP_weight, BorderLayout.CENTER);
         jP_main.add(buildTopPanel(), BorderLayout.NORTH);
         jP_main.add(buildServicesPanel(), BorderLayout.EAST);
         //jSP_matrix = new JScrollPane(jPS_matrix);
@@ -220,26 +226,71 @@ public class Display extends JFrame {
         }
     }
 
-    public void updateDataset(int step) {
+    public void updateRobustnessDataset(int step) {
         if (datasetRobustness == null) {
             datasetRobustness = new DefaultTableXYDataset();
             datasetRobustness.addSeries(new XYSeries("Robustness", false, false));
         }
+        datasetRobustness.getSeries(0).setNotify(false);
         for (int i = 0; i < step; i++) {
             datasetRobustness.getSeries(0).addOrUpdate(new Integer(i), robustnessByStep.get(i));
         }
         for (int i = step; i < stepNumber; i++) {
             datasetRobustness.getSeries(0).addOrUpdate(new Integer(i), new Integer(-1));
         }
+        datasetRobustness.getSeries(0).setNotify(true);
     }
 
-    public JFreeChart buildChart() {
+    public void updateWeightDataset(int step) {
+        if (datasetWeight == null) {
+            datasetWeight = new DefaultTableXYDataset();
+            weightSeries = new HashMap<>();
+            for (Double weight = 0d; weight < maxApplicationSize; weight++) {
+                weightSeries.put(weight, new XYSeries("Weight " + weight, false, false));
+                datasetWeight.addSeries(weightSeries.get(weight));
+            }
+            weightSeries.put(-1d, new XYSeries("Weight sum", false, false));
+            datasetWeight.addSeries(weightSeries.get(-1d));
+        }
+        for (Double weight : weightSeries.keySet()) {
+            weightSeries.get(weight).setNotify(false);
+            for (int i = 0; i < step; i++) {
+                double value;
+                if (weight == -1d) {
+                    value = linksByWeightByStep.get(i).values().stream().mapToDouble(w -> w).sum();
+                } else {
+                    if (linksByWeightByStep.get(i).containsKey(weight)) {
+                        value = linksByWeightByStep.get(i).get(weight);
+                    } else {
+                        value = 0;
+                    }
+                }
+                weightSeries.get(weight).addOrUpdate(new Integer(i), new Double(value));
+            }
+            for (int i = step; i < stepNumber; i++) {
+                weightSeries.get(weight).addOrUpdate(new Integer(i), new Integer(-1));
+            }
+            weightSeries.get(weight).setNotify(true);
+        }
+    }
+
+    public JFreeChart buildRobustnessChart() {
         if (datasetRobustness == null) {
-            updateDataset(0);
+            updateRobustnessDataset(0);
         }
         JFreeChart chart = ChartFactory.createTimeSeriesChart("Robustness", "Steps", "Robustness", datasetRobustness, false, false, false);
         ((XYPlot) (chart.getPlot())).getDomainAxis().setRange(0, stepNumber);
         ((XYPlot) (chart.getPlot())).getRangeAxis().setRange(0, 1);
+        return chart;
+    }
+
+    public JFreeChart buildWeightChart() {
+        if (datasetWeight == null) {
+            updateWeightDataset(0);
+        }
+        JFreeChart chart = ChartFactory.createTimeSeriesChart("Weight", "Steps", "Weight", datasetWeight, true, false, false);
+        ((XYPlot) (chart.getPlot())).getDomainAxis().setRange(0, stepNumber);
+        chart.getLegend().setPosition(RectangleEdge.RIGHT);
         return chart;
     }
 
@@ -598,17 +649,6 @@ public class Display extends JFrame {
         buildSituations();
     }
 
-    public void preParseInputFileJSON(String inputFolder) {
-        System.out.println("Parsing JSON log file...");
-        serverNames = new LinkedHashSet<>();
-        applicationNames = new LinkedHashSet<>();
-        serviceNames = new LinkedHashSet<>();
-        graphHistory = new HashMap<>();
-        serverHistory = new HashMap<>();
-        applicationHistory = new HashMap<>();
-
-    }
-
     /**
      * parser for files from FF's BPG simulation
      *
@@ -844,7 +884,8 @@ public class Display extends JFrame {
 
         jPS_matrix.setMatrixSize(applicationHistory.get(step).size(), serverHistory.get(step).size());
         jPS_matrix.setMatrix(matrixByStep.get(step));
-        updateDataset(step);
+        updateRobustnessDataset(step);
+        updateWeightDataset(step);
         if (componentLocked) {
             displayComponent(currentSelectedComponent);
         }
