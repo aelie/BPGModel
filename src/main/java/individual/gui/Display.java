@@ -39,6 +39,7 @@ public class Display extends JFrame {
 
     JPanel testP = new JPanel();
 
+    JScrollPane jSP_tabbed_panel;
     JPanel jP_main;
     JTabbedPane jTP_display;
     JPanel jP_matrixchart;
@@ -172,10 +173,11 @@ public class Display extends JFrame {
         jP_main.add(buildTopPanel(), BorderLayout.NORTH);
         jP_main.add(buildServicesPanel(), BorderLayout.EAST);
         //jSP_matrix = new JScrollPane(jPS_matrix);
+        jSP_tabbed_panel = new JScrollPane(jTP_display);
         jTP_display.addTab("Dual", jP_display);
         jTP_display.addTab("Matrix", /*jPS_matrix*/jP_matrixchart);
         jTP_display.setSelectedIndex(1);
-        jP_main.add(jTP_display, BorderLayout.CENTER);
+        jP_main.add(/*jTP_display*/jSP_tabbed_panel, BorderLayout.CENTER);
         getContentPane().add(jP_main);
         mL_actorComponent = new MouseListener() {
 
@@ -476,7 +478,7 @@ public class Display extends JFrame {
             JSlider source = (JSlider) e.getSource();
             setGraph(source.getValue());
         });
-        jS_slider.setUI(new MetalSliderUI() {
+        /*jS_slider.setUI(new MetalSliderUI() {
             protected void scrollDueToClickInTrack(int direction) {
                 int value = slider.getValue();
                 if (slider.getOrientation() == JSlider.HORIZONTAL) {
@@ -486,7 +488,7 @@ public class Display extends JFrame {
                 }
                 slider.setValue(value);
             }
-        });
+        });*/
         jB_begin = new JButton("<<");
         jB_begin.addActionListener(e -> setGraph(0));
         jB_previous = new JButton("<");
