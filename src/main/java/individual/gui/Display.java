@@ -30,6 +30,11 @@ import java.util.stream.Collectors;
  */
 public class Display extends JFrame {
 
+    public static final int FF = 0;
+    public static final int AE = 1;
+
+    public static int dataSource;
+
     String testFile;
 
     JPanel testP = new JPanel();
@@ -121,8 +126,10 @@ public class Display extends JFrame {
             System.exit(-1);
         }
         if (new File(inputFile).isDirectory()) {
+            dataSource = FF;
             preParseInputFileFF(testFile);
         } else {
+            dataSource = AE;
             preParseInputFileAE(testFile);
         }
         buildMatrixByStep(stepNumber - 1);
@@ -280,7 +287,9 @@ public class Display extends JFrame {
         }
         JFreeChart chart = ChartFactory.createTimeSeriesChart("Robustness", "Steps", "Robustness", datasetRobustness, false, false, false);
         ((XYPlot) (chart.getPlot())).getDomainAxis().setRange(0, stepNumber);
-        ((XYPlot) (chart.getPlot())).getRangeAxis().setRange(0, 1);
+        double robMin = Collections.min(robustnessByStep.values());
+        double robMax = Collections.max(robustnessByStep.values());
+        ((XYPlot) (chart.getPlot())).getRangeAxis().setRange(Math.max(robMin - (robMax - robMin) / 10, 0), Math.min(robMax + (robMax - robMin) / 10, 1));
         return chart;
     }
 
@@ -297,21 +306,27 @@ public class Display extends JFrame {
     public Map<Integer, Map<Server, Set<Application>>> buildConnectionsByStep() {
         Map<Integer, Map<Server, Set<Application>>> result = new HashMap<>();
         for (Integer step : graphHistory.keySet()) {
+            Map<String, Application> applicationNamePool = new HashMap<>();
             result.put(step, new LinkedHashMap<>());
             for (FakeServer fakeServer : graphHistory.get(step).keySet()) {
-                Server tmp = new Server(fakeServer.name,
+                Server tmpServ = new Server(fakeServer.name,
                         fakeServer.generation,
                         new LinkedHashSet<>(fakeServer.services.stream()
                                 .map(name -> new Service(name, 0, 0))
                                 .collect(Collectors.toList())), fakeServer.maxConnections);
-                result.get(step).put(tmp, new LinkedHashSet<>());
+                result.get(step).put(tmpServ, new LinkedHashSet<>());
                 for (FakeApplication fakeApplication : graphHistory.get(step).get(fakeServer)) {
-                    result.get(step).get(tmp).add(
-                            new Application(fakeApplication.name,
-                                    fakeApplication.generation,
-                                    new LinkedHashSet<>(fakeApplication.services.stream()
-                                            .map(name -> new Service(name, 0, 0))
-                                            .collect(Collectors.toList()))));
+                    if (!applicationNamePool.keySet().contains(fakeApplication.name)) {
+                        Application tmpApp = new Application(fakeApplication.name,
+                                fakeApplication.generation,
+                                new LinkedHashSet<>(fakeApplication.services.stream()
+                                        .map(name -> new Service(name, 0, 0))
+                                        .collect(Collectors.toList())));
+                        result.get(step).get(tmpServ).add(tmpApp);
+                        applicationNamePool.put(fakeApplication.name, tmpApp);
+                    } else {
+                        result.get(step).get(tmpServ).add(applicationNamePool.get(fakeApplication.name));
+                    }
                 }
             }
         }
@@ -319,11 +334,13 @@ public class Display extends JFrame {
     }
 
     public void buildRobustnessByStep() {
-        System.out.println("Building robustness data...");
-        robustnessByStep = new HashMap<>();
-        Map<Integer, Map<Server, Set<Application>>> connectionsByStep = buildConnectionsByStep();
-        for (Integer step : connectionsByStep.keySet()) {
-            robustnessByStep.put(step, Tools.robustnessRandom(connectionsByStep.get(step), Tools.SHUFFLE_ORDER).get(0));
+        if(dataSource == AE) {
+            System.out.println("Building robustness data...");
+            robustnessByStep = new HashMap<>();
+            Map<Integer, Map<Server, Set<Application>>> connectionsByStep = buildConnectionsByStep();
+            for (Integer step : connectionsByStep.keySet()) {
+                robustnessByStep.put(step, Tools.robustnessRandom(connectionsByStep.get(step), Tools.SHUFFLE_ORDER).get(0));
+            }
         }
     }
 
@@ -530,7 +547,7 @@ public class Display extends JFrame {
 
     public void display() {
         setSize(new Dimension(screen_width, screen_height));
-        setGraph(0);
+        setGraph(stepNumber - 1);
         setVisible(true);
     }
 
@@ -662,6 +679,7 @@ public class Display extends JFrame {
         graphHistory = new HashMap<>();
         serverHistory = new HashMap<>();
         applicationHistory = new HashMap<>();
+        robustnessByStep = new HashMap<>();
         int fileStep;
         try {
             // for all files in the input folder
@@ -676,6 +694,7 @@ public class Display extends JFrame {
                 List<FakeServer> currentServers = new ArrayList<>();
                 BufferedReader br = Files.newBufferedReader(inputFile.toPath());
                 String line;
+                robustnessByStep.put(fileStep, (double)(Integer.parseInt(br.readLine().split("=")[1].trim())) / 1000d);
                 // skipping lines until "PLATFORMS"
                 while ((line = br.readLine()) != null && !line.equalsIgnoreCase("PLATFORMS")) {
 
@@ -713,7 +732,7 @@ public class Display extends JFrame {
                                 Arrays.asList(services.substring(1, services.length() - 1).split(",")).stream()
                                         .map(String::trim)
                                         .collect(Collectors.toList()),
-                                Arrays.asList(neighbors.substring(1, neighbors.length() - 2).split("\\s")).stream()
+                                neighbors.equalsIgnoreCase("") ? new ArrayList<>() : Arrays.asList(neighbors.substring(1, neighbors.length() - 2).split("\\s")).stream()
                                         .map(neighborName -> (FakeServer) findActor(neighborName, currentServers))
                                         .collect(Collectors.toList()));
                         applicationHistory.get(fileStep).add(fakeApplication);
@@ -729,6 +748,7 @@ public class Display extends JFrame {
                         serviceNames.addAll(fakeApplication.services);
                     }
                 }
+                serviceNames.remove("");
                 stepNumber = Math.max(fileStep + 1, stepNumber);
             }
         } catch (IOException e) {
