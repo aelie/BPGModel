@@ -62,6 +62,7 @@ public class Display extends JFrame {
     JPanel jP_info;
     JLabel jL_servers_alive_value;
     JLabel jL_applications_alive_value;
+    JLabel jL_potential_connections_value;
     JPanel jP_top;
     JLabel jL_actorName_value;
     JLabel jL_actorType_value;
@@ -258,8 +259,8 @@ public class Display extends JFrame {
                 weightSeries.put(weight, new XYSeries("Weight " + weight, false, false));
                 datasetWeight.addSeries(weightSeries.get(weight));
             }
-            weightSeries.put(-1d, new XYSeries("Weight sum", false, false));
-            datasetWeight.addSeries(weightSeries.get(-1d));
+            //weightSeries.put(-1d, new XYSeries("Weight sum", false, false));
+            //datasetWeight.addSeries(weightSeries.get(-1d));
         }
         for (Double weight : weightSeries.keySet()) {
             weightSeries.get(weight).setNotify(false);
@@ -466,6 +467,14 @@ public class Display extends JFrame {
         jL_applications_alive_value.setPreferredSize(new Dimension(150, 20));
         jP_info.add(jL_applications_alive_label);
         jP_info.add(jL_applications_alive_value);
+
+        JLabel jL_potential_connections_label = new JLabel("Potential connections:");
+        jL_potential_connections_label.setHorizontalAlignment(JLabel.TRAILING);
+        jL_potential_connections_value = new JLabel();
+        jL_potential_connections_value.setHorizontalAlignment(JLabel.LEADING);
+        jL_potential_connections_value.setPreferredSize(new Dimension(150, 20));
+        jP_info.add(jL_potential_connections_label);
+        jP_info.add(jL_potential_connections_value);
         return jP_info;
     }
 
@@ -906,6 +915,9 @@ public class Display extends JFrame {
 
         jPS_matrix.setMatrixSize(applicationHistory.get(step).size(), serverHistory.get(step).size());
         jPS_matrix.setMatrix(matrixByStep.get(step));
+
+        jL_potential_connections_value.setText(Integer.toString(jPS_matrix.getPotentialConnections()));
+
         updateRobustnessDataset(step);
         updateWeightDataset(step);
         if (componentLocked) {

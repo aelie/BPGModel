@@ -17,6 +17,8 @@ class JPanelMatrix extends JPanel {
     int matrixWidth;
     int matrixHeight;
 
+    int potentialConnections = 0;
+
     public void setMatrixSize(int width, int height) {
         matrixWidth = width;
         matrixHeight = height;
@@ -34,6 +36,16 @@ class JPanelMatrix extends JPanel {
     @Override
     public Dimension getPreferredSize() {
         return new Dimension(totalPaddingX * 2 + matrixWidth * (size + padding), totalPaddingY * 2 + matrixHeight * (size + padding));//this.getParent().getSize();//new Dimension(PREF_W, PREF_H);
+    }
+
+    public int getPotentialConnections() {
+        potentialConnections = 0;
+        for (int i = 0; i < matrix.length; i++) {
+            for (int j = 0; j < matrix[0].length; j++) {
+                potentialConnections += matrix[i][j] == 0 ? 1 : 0;
+            }
+        }
+        return potentialConnections;
     }
 
     @Override
