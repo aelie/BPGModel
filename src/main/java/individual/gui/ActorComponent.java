@@ -33,7 +33,9 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
     boolean highlighted = false;
     boolean neighbor = false;
 
-    public ActorComponent(FakeActor fakeActor, int state, int shape) {
+    BpgHistory bpgHistory;
+
+    public ActorComponent(FakeActor fakeActor, int state, int shape, BpgHistory bpgHistory) {
         super();
         this.fakeActor = fakeActor;
         this.name = fakeActor.name;
@@ -45,6 +47,7 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
         this.services = fakeActor.services;
         this.state = state;
         this.shape = shape;
+        this.bpgHistory = bpgHistory;
     }
 
     @Override
@@ -118,17 +121,17 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
         int offset = 5;
         int componentSize = 0;
         super.paintComponent(g);
-        int ageColorComponent = (int) (age / (double) Display.stepNumber * 150);
+        int ageColorComponent = (int) (age / (double) bpgHistory.getStepNumber() * 150);
         Color backgroundAgeColor = new Color(255 - ageColorComponent, 255 - ageColorComponent, 255 - ageColorComponent);
         Color serverGenerationColor;
-        if (Display.maxServerGeneration != 0) {
-            serverGenerationColor = new Color((int) (255 * (1 - generation / (double) Display.maxServerGeneration)), 0, 0);
+        if (bpgHistory.getMaxServerGeneration() != 0) {
+            serverGenerationColor = new Color((int) (255 * (1 - generation / (double) bpgHistory.getMaxServerGeneration())), 0, 0);
         } else {
             serverGenerationColor = new Color(255, 0, 0);
         }
         Color applicationGenerationColor;
-        if (Display.maxApplicationGeneration != 0) {
-            applicationGenerationColor = new Color(0, (int) (255 * (1 - generation / (double) Display.maxApplicationGeneration)), 0);
+        if (bpgHistory.getMaxApplicationGeneration() != 0) {
+            applicationGenerationColor = new Color(0, (int) (255 * (1 - generation / (double) bpgHistory.getMaxApplicationGeneration())), 0);
         } else {
             applicationGenerationColor = new Color(0, 255, 0);
         }
@@ -141,10 +144,10 @@ public class ActorComponent extends JComponent implements Comparable<ActorCompon
         g.fillRect(0, 0, Display.componentBaseSize, Display.componentBaseSize);
         if (type == ActorComponent.SERVER) {
             g.setColor(serverGenerationColor);
-            componentSize = (int) ((4 * services.size() / (double) Display.maxServerSize + 1) / 5f * (Display.componentBaseSize - offset * 2));
+            componentSize = (int) ((4 * services.size() / (double) bpgHistory.getMaxServerSize() + 1) / 5f * (Display.componentBaseSize - offset * 2));
         } else if (type == ActorComponent.APPLICATION) {
             g.setColor(applicationGenerationColor);
-            componentSize = (int) ((4 * services.size() / (double) Display.maxApplicationSize + 1) / 5f * (Display.componentBaseSize - offset * 2));
+            componentSize = (int) ((4 * services.size() / (double) bpgHistory.getMaxApplicationSize() + 1) / 5f * (Display.componentBaseSize - offset * 2));
         }
         if (shape == ActorComponent.CIRCLE) {
             int arc = (int) ((1 - actorConnections / (double) maxConnections) * 360);
