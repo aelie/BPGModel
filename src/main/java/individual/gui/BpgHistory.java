@@ -40,6 +40,9 @@ public class BpgHistory {
     private Map<Integer, List<FakeApplication>> applicationHistory;
 
     Map<Integer, Double> robustnessByStep;
+    Map<Integer, Integer> IncompatiblesByStep;
+    Map<Integer, Integer> cumulativeServicesByStep;
+    Map<Integer, Integer> cumulativeLinksByStep;
 
     public BpgHistory(String inputFile) {
         testFile = System.getProperty("user.dir") + File.separator + (inputFile == null ? "connections.log" : inputFile);
@@ -255,6 +258,32 @@ public class BpgHistory {
             for (Integer step : connectionsByStep.keySet()) {
                 robustnessByStep.put(step, Tools.robustnessRandom(connectionsByStep.get(step), Tools.SHUFFLE_ORDER).get(0));
             }
+        } else {
+            // done during parsing
+        }
+    }
+
+    public void buildIncompatiblesByStep() {
+        System.out.println("Building potential connections data...");
+        IncompatiblesByStep = new HashMap<>();
+        for (Integer step : graphHistory.keySet()) {
+            IncompatiblesByStep.put(step, getIncompatibles(step));
+        }
+    }
+
+    public void buildCumulativeServicesByStep() {
+        System.out.println("Building cumulative services data...");
+        cumulativeServicesByStep = new HashMap<>();
+        for (Integer step : graphHistory.keySet()) {
+            cumulativeServicesByStep.put(step, getCumulativeServices(step));
+        }
+    }
+
+    public void buildCumulativeLinksByStep() {
+        System.out.println("Building cumulative links data...");
+        cumulativeLinksByStep = new HashMap<>();
+        for (Integer step : graphHistory.keySet()) {
+            cumulativeLinksByStep.put(step, getCumulativeLinks(step));
         }
     }
 
@@ -286,6 +315,28 @@ public class BpgHistory {
             }
         }
         return result;
+    }
+
+    public int getCumulativeServices(int step) {
+        return serverHistory.get(step).stream()
+                .mapToInt(FakeActor::getSize)
+                .sum();
+    }
+
+    public int getCumulativeLinks(int step) {
+        return serverHistory.get(step).stream()
+                .mapToInt(server -> applicationHistory.get(step).stream()
+                        .mapToInt(app -> server.getCommonServices(app).size())
+                        .sum())
+                .sum();
+    }
+
+    public int getIncompatibles(int step) {
+        return serverHistory.get(step).stream()
+                .mapToInt(server -> applicationHistory.get(step).stream()
+                        .mapToInt(app -> server.getCommonServices(app).size() == 0 ? 1 : 0)
+                        .sum())
+                .sum();
     }
 
     public int getStepNumber() {
@@ -330,5 +381,21 @@ public class BpgHistory {
 
     public int getMaxApplicationSize() {
         return maxApplicationSize;
+    }
+
+    public Map<Integer, Double> getRobustnessByStep() {
+        return robustnessByStep;
+    }
+
+    public Map<Integer, Integer> getCumulativeServicesByStep() {
+        return cumulativeServicesByStep;
+    }
+
+    public Map<Integer, Integer> getCumulativeLinksByStep() {
+        return cumulativeLinksByStep;
+    }
+
+    public Map<Integer, Integer> getIncompatiblesByStep() {
+        return IncompatiblesByStep;
     }
 }

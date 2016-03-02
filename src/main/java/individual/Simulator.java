@@ -60,7 +60,7 @@ public class Simulator {
     Map<Integer, Map<String, Double>> costHistory;
     Map<Integer, Set<Server>> serverHistory;
     Map<Integer, Set<Application>> applicationHistory;
-    SimulationManager manager;
+    //SimulationManager manager;
     DisplayGraph dg;
     boolean silentMode = false;
 
@@ -262,12 +262,12 @@ public class Simulator {
         serviceCounter = 0;
         random = new Random(seed);
         this.silentMode = silentMode;
-        if (useManager) {
+        /*if (useManager) {
             EventQueue.invokeLater(() -> {
                 manager = new SimulationManager(maxTime);
                 manager.display();
             });
-        }
+        }*/
         //dg = new DisplayGraph();
         //gd = new GraphicalDisplay();
         //gd.display();
@@ -402,9 +402,9 @@ public class Simulator {
         }
         int targetTime = Math.min(desiredTime, maxTime);
         while (currentTime < targetTime && !onPause) {
-            if (manager != null) {
+            /*if (manager != null) {
                 manager.updateSliderPosition(currentTime);
-            }
+            }*/
             if (evolveServersNeutral) {
                 evolveServersNeutral();
             }

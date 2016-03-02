@@ -30,9 +30,13 @@ public class Display extends JFrame {
     JPanel jP_main;
     JTabbedPane jTP_display;
     JPanel jP_matrixchart;
+    JPanel jP_charts;
     JPanelMatrix jPS_matrix;
     ChartPanel CP_robustness;
     ChartPanel CP_weight;
+    ChartPanel CP_potential_connections;
+    ChartPanel CP_cumulative_services;
+    ChartPanel CP_cumulative_links;
     JPanel jP_display;
     JPanel jP_display_servers;
     JPanel jP_display_applications;
@@ -87,10 +91,15 @@ public class Display extends JFrame {
 
     DefaultTableXYDataset datasetRobustness;
     DefaultTableXYDataset datasetWeight;
+    DefaultTableXYDataset datasetIncompatibles;
+    DefaultTableXYDataset datasetCumulativeServices;
+    DefaultTableXYDataset datasetCumulativeLinks;
     Map<Double, XYSeries> weightSeries;
 
     boolean componentLocked = false;
     ActorComponent currentSelectedComponent;
+
+    static boolean log = true;
 
     public Display(String inputFile) {
         bpgHistory = new BpgHistory(inputFile);
@@ -98,7 +107,13 @@ public class Display extends JFrame {
         buildMatrixByStep(bpgHistory.getStepNumber() - 1);
         buildWeightByStep();
         bpgHistory.buildRobustnessByStep();
+        bpgHistory.buildCumulativeServicesByStep();
+        bpgHistory.buildIncompatiblesByStep();
+        bpgHistory.buildCumulativeLinksByStep();
         init();
+        if(log) {
+            exportCSV();
+        }
     }
 
     public void init() {
@@ -127,32 +142,42 @@ public class Display extends JFrame {
         jPS_matrix = new JPanelMatrix();
         CP_robustness = new ChartPanel(buildRobustnessChart());
         CP_weight = new ChartPanel(buildWeightChart());
+        CP_potential_connections = new ChartPanel(buildIncompatiblesChart());
+        CP_cumulative_services = new ChartPanel(buildCumulativeServicesChart());
+        CP_cumulative_links = new ChartPanel(buildCumulativeLinksChart());
+        jP_charts = new JPanel();
+        jP_charts.setLayout(new GridLayout(2, 3));
+        jP_charts.add(CP_robustness);
+        jP_charts.add(CP_weight);
+        jP_charts.add(CP_potential_connections);
+        jP_charts.add(CP_cumulative_services);
+        jP_charts.add(CP_cumulative_links);
         jP_matrixchart = new JPanel();
         jP_matrixchart.setLayout(new BorderLayout());
         jP_matrixchart.add(jPS_matrix, BorderLayout.NORTH);
-        jP_matrixchart.add(CP_robustness, BorderLayout.WEST);
-        jP_matrixchart.add(CP_weight, BorderLayout.CENTER);
+        jP_matrixchart.add(jP_charts, BorderLayout.CENTER);
         jP_main.add(buildTopPanel(), BorderLayout.NORTH);
         jP_main.add(buildServicesPanel(), BorderLayout.EAST);
-        //jSP_matrix = new JScrollPane(jPS_matrix);
         jSP_tabbed_panel = new JScrollPane(jTP_display);
         jTP_display.addTab("Dual", jP_display);
-        jTP_display.addTab("Matrix", /*jPS_matrix*/jP_matrixchart);
+        jTP_display.addTab("Matrix", jP_matrixchart);
         jTP_display.setSelectedIndex(1);
-        jP_main.add(/*jTP_display*/jSP_tabbed_panel, BorderLayout.CENTER);
+        jP_main.add(jSP_tabbed_panel, BorderLayout.CENTER);
         getContentPane().add(jP_main);
         mL_actorComponent = new MouseListener() {
 
             @Override
             public void mouseClicked(MouseEvent e) {
-                Object source = e.getSource();
-                if (source instanceof ActorComponent) {
-                    if (!componentLocked) {
-                        componentLocked = true;
-                        currentSelectedComponent = (ActorComponent) source;
-                    } else {
-                        componentLocked = false;
-                        currentSelectedComponent = null;
+                if (jTP_display.getSelectedIndex() == 0) {
+                    Object source = e.getSource();
+                    if (source instanceof ActorComponent) {
+                        if (!componentLocked) {
+                            componentLocked = true;
+                            currentSelectedComponent = (ActorComponent) source;
+                        } else {
+                            componentLocked = false;
+                            currentSelectedComponent = null;
+                        }
                     }
                 }
             }
@@ -168,23 +193,34 @@ public class Display extends JFrame {
 
             @Override
             public void mouseEntered(MouseEvent e) {
-                Object source = e.getSource();
-                if (source instanceof ActorComponent) {
-                    if (!componentLocked) {
-                        displayLinks((ActorComponent) source);
-                        displayActor((ActorComponent) source);
+                if (jTP_display.getSelectedIndex() == 0) {
+                    Object source = e.getSource();
+                    if (source instanceof ActorComponent) {
+                        if (!componentLocked) {
+                            displayLinks((ActorComponent) source);
+                            displayActor((ActorComponent) source);
+                        }
+                    }
+                } else if (jTP_display.getSelectedIndex() == 1) {
+                    Object source = e.getSource();
+                    if (source instanceof JPanelMatrix) {
+
                     }
                 }
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
-                Object source = e.getSource();
-                if (source instanceof ActorComponent) {
-                    if (!componentLocked) {
-                        displayLinks(null);
-                        displayActor(null);
+                if (jTP_display.getSelectedIndex() == 0) {
+                    Object source = e.getSource();
+                    if (source instanceof ActorComponent) {
+                        if (!componentLocked) {
+                            displayLinks(null);
+                            displayActor(null);
+                        }
                     }
+                } else if (jTP_display.getSelectedIndex() == 1) {
+
                 }
             }
         };
@@ -204,7 +240,7 @@ public class Display extends JFrame {
         }
         datasetRobustness.getSeries(0).setNotify(false);
         for (int i = 0; i < step; i++) {
-            datasetRobustness.getSeries(0).addOrUpdate(new Integer(i), bpgHistory.robustnessByStep.get(i));
+            datasetRobustness.getSeries(0).addOrUpdate(new Integer(i), bpgHistory.getRobustnessByStep().get(i));
         }
         for (int i = step; i < bpgHistory.getStepNumber(); i++) {
             datasetRobustness.getSeries(0).addOrUpdate(new Integer(i), new Integer(-1));
@@ -245,6 +281,51 @@ public class Display extends JFrame {
         }
     }
 
+    public void updateIncompatiblesDataset(int step) {
+        if (datasetIncompatibles == null) {
+            datasetIncompatibles = new DefaultTableXYDataset();
+            datasetIncompatibles.addSeries(new XYSeries("Incompatibles", false, false));
+        }
+        datasetIncompatibles.getSeries(0).setNotify(false);
+        for (int i = 0; i < step; i++) {
+            datasetIncompatibles.getSeries(0).addOrUpdate(new Integer(i), new Integer(bpgHistory.getIncompatiblesByStep().get(i)));
+        }
+        for (int i = step; i < bpgHistory.getStepNumber(); i++) {
+            datasetIncompatibles.getSeries(0).addOrUpdate(new Integer(i), new Integer(-1));
+        }
+        datasetIncompatibles.getSeries(0).setNotify(true);
+    }
+
+    public void updateCumulativeServicesDataset(int step) {
+        if (datasetCumulativeServices == null) {
+            datasetCumulativeServices = new DefaultTableXYDataset();
+            datasetCumulativeServices.addSeries(new XYSeries("CumulativeServices", false, false));
+        }
+        datasetCumulativeServices.getSeries(0).setNotify(false);
+        for (int i = 0; i < step; i++) {
+            datasetCumulativeServices.getSeries(0).addOrUpdate(new Integer(i), new Integer(bpgHistory.getCumulativeServicesByStep().get(i)));
+        }
+        for (int i = step; i < bpgHistory.getStepNumber(); i++) {
+            datasetCumulativeServices.getSeries(0).addOrUpdate(new Integer(i), new Integer(-1));
+        }
+        datasetCumulativeServices.getSeries(0).setNotify(true);
+    }
+
+    public void updateCumulativeLinksDataset(int step) {
+        if (datasetCumulativeLinks == null) {
+            datasetCumulativeLinks = new DefaultTableXYDataset();
+            datasetCumulativeLinks.addSeries(new XYSeries("CumulativeLinks", false, false));
+        }
+        datasetCumulativeLinks.getSeries(0).setNotify(false);
+        for (int i = 0; i < step; i++) {
+            datasetCumulativeLinks.getSeries(0).addOrUpdate(new Integer(i), new Integer(bpgHistory.getCumulativeLinksByStep().get(i)));
+        }
+        for (int i = step; i < bpgHistory.getStepNumber(); i++) {
+            datasetCumulativeLinks.getSeries(0).addOrUpdate(new Integer(i), new Integer(-1));
+        }
+        datasetCumulativeLinks.getSeries(0).setNotify(true);
+    }
+
     public JFreeChart buildRobustnessChart() {
         if (datasetRobustness == null) {
             updateRobustnessDataset(0);
@@ -264,6 +345,33 @@ public class Display extends JFrame {
         JFreeChart chart = ChartFactory.createTimeSeriesChart("Weight", "Steps", "Weight", datasetWeight, true, false, false);
         ((XYPlot) (chart.getPlot())).getDomainAxis().setRange(0, bpgHistory.getStepNumber());
         chart.getLegend().setPosition(RectangleEdge.RIGHT);
+        return chart;
+    }
+
+    public JFreeChart buildIncompatiblesChart() {
+        if (datasetIncompatibles == null) {
+            updateIncompatiblesDataset(0);
+        }
+        JFreeChart chart = ChartFactory.createTimeSeriesChart("Incompatibles", "Steps", "Incompatibles", datasetIncompatibles, true, false, false);
+        ((XYPlot) (chart.getPlot())).getDomainAxis().setRange(0, bpgHistory.getStepNumber());
+        return chart;
+    }
+
+    public JFreeChart buildCumulativeServicesChart() {
+        if (datasetCumulativeServices == null) {
+            updateCumulativeServicesDataset(0);
+        }
+        JFreeChart chart = ChartFactory.createTimeSeriesChart("CumulativeServices", "Steps", "CumulativeServices", datasetCumulativeServices, true, false, false);
+        ((XYPlot) (chart.getPlot())).getDomainAxis().setRange(0, bpgHistory.getStepNumber());
+        return chart;
+    }
+
+    public JFreeChart buildCumulativeLinksChart() {
+        if (datasetCumulativeLinks == null) {
+            updateCumulativeLinksDataset(0);
+        }
+        JFreeChart chart = ChartFactory.createTimeSeriesChart("CumulativeLinks", "Steps", "CumulativeLinks", datasetCumulativeLinks, true, false, false);
+        ((XYPlot) (chart.getPlot())).getDomainAxis().setRange(0, bpgHistory.getStepNumber());
         return chart;
     }
 
@@ -482,6 +590,45 @@ public class Display extends JFrame {
         setVisible(true);
     }
 
+    public void exportCSV() {
+        try {
+            PrintWriter pw = new PrintWriter("export.csv");
+            pw.println("\"Step\",\"Server\",\"Application\",\"Links\"");
+            int step = 0;
+            for (int i = 0; i < bpgHistory.getApplicationHistory().get(step).size(); i++) {
+                for (int j = 0; j < bpgHistory.getServerHistory().get(step).size(); j++) {
+                    int value = 0;
+                    for (String serverService : bpgHistory.getServerHistory().get(step).get(j).services) {
+                        if (bpgHistory.getApplicationHistory().get(step).get(i).services.contains(serverService)) {
+                            value++;
+                        }
+                    }
+                    pw.println("\"" + step +
+                            "\",\"" + bpgHistory.getServerHistory().get(step).get(j).name +
+                            "\",\"" + bpgHistory.getApplicationHistory().get(step).get(i).name +
+                            "\",\"" + value + "\"");
+                }
+            }
+            step = bpgHistory.getStepNumber() - 1;
+            for (int i = 0; i < bpgHistory.getApplicationHistory().get(step).size(); i++) {
+                for (int j = 0; j < bpgHistory.getServerHistory().get(step).size(); j++) {
+                    int value = 0;
+                    for (String serverService : bpgHistory.getServerHistory().get(step).get(j).services) {
+                        if (bpgHistory.getApplicationHistory().get(step).get(i).services.contains(serverService)) {
+                            value++;
+                        }
+                    }
+                    pw.println("\"" + step +
+                            "\",\"" + bpgHistory.getServerHistory().get(step).get(j).name +
+                            "\",\"" + bpgHistory.getApplicationHistory().get(step).get(i).name +
+                            "\",\"" + value + "\"");
+                }
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
     public void exportMatrix(String outputFile) {
         try {
             PrintWriter pw = new PrintWriter(outputFile);
@@ -643,10 +790,11 @@ public class Display extends JFrame {
         jPS_matrix.setMatrixSize(bpgHistory.getApplicationHistory().get(step).size(), bpgHistory.getServerHistory().get(step).size());
         jPS_matrix.setMatrix(matrixByStep.get(step));
 
-        jL_potential_connections_value.setText(Integer.toString(jPS_matrix.getPotentialConnections()));
-
         updateRobustnessDataset(step);
         updateWeightDataset(step);
+        updateIncompatiblesDataset(step);
+        updateCumulativeServicesDataset(step);
+        updateCumulativeLinksDataset(step);
         if (componentLocked) {
             displayComponent(currentSelectedComponent);
         }

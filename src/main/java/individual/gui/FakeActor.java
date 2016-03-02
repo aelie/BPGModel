@@ -25,6 +25,10 @@ class FakeActor {
         return services.stream().filter(s -> external.services.contains(s)).collect(Collectors.toList());
     }
 
+    public int getSize() {
+        return services.size();
+    }
+
     @Override
     public String toString() {
         return name;

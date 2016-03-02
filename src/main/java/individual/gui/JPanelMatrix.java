@@ -35,7 +35,8 @@ class JPanelMatrix extends JPanel {
 
     @Override
     public Dimension getPreferredSize() {
-        return new Dimension(totalPaddingX * 2 + matrixWidth * (size + padding), totalPaddingY * 2 + matrixHeight * (size + padding));//this.getParent().getSize();//new Dimension(PREF_W, PREF_H);
+        return new Dimension(totalPaddingX + matrixWidth * (size + padding), totalPaddingY + matrixHeight * (size + padding));
+        //return new Dimension(totalPaddingX * 2 + matrixWidth * (size + padding), totalPaddingY * 2 + matrixHeight * (size + padding));//this.getParent().getSize();//new Dimension(PREF_W, PREF_H);
     }
 
     public int getPotentialConnections() {
